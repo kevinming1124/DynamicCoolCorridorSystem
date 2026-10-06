@@ -1,5 +1,7 @@
 # Dynamic Cool Corridor System
 
+New developers and GPT sessions should begin with [HANDOFF.md](HANDOFF.md).
+
 ## Python version
 
 - 3.12
