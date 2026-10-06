@@ -1,0 +1,13 @@
+edge_id,from_node,to_node,distance_m,walk_time_min,surface_type,accessible
+E01,N01,N02,40.00,0.48,paved,true
+E02,N02,N03,40.00,0.48,paved,true
+E03,N02,N04,40.00,0.48,paved,true
+E04,N03,N05,40.00,0.48,paved,true
+E05,N04,N05,40.00,0.48,paved,true
+E06,N01,N06,60.00,0.71,paved,true
+E07,N06,N09,40.00,0.48,paved,true
+E08,N09,N07,40.00,0.48,paved,true
+E09,N03,N07,60.00,0.71,paved,true
+E10,N02,N08,40.00,0.48,paved,true
+E11,N04,N08,80.00,0.95,paved,true
+E12,N09,N08,20.00,0.24,paved,true

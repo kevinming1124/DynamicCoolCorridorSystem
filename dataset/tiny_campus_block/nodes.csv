@@ -1,0 +1,10 @@
+node_id,location_name,location_type,x_m,y_m,accessible,description
+N01,West Hall,dormitory,0,60,true,Student residence on the west side
+N02,Campus Dining,dining_hall,40,60,true,Main dining facility
+N03,Science Center,teaching_building,80,60,true,Laboratories and science classrooms
+N04,Main Library,library,40,100,true,Library and study space
+N05,East Lecture Hall,teaching_building,80,100,true,General-purpose lecture rooms
+N06,Recreation Center,recreation_center,0,0,true,Gymnasium and recreation facilities
+N07,South Transit Stop,transit_stop,80,0,true,Campus shuttle and bus stop
+N08,Central Green,open_space,40,20,true,Landscaped gathering area
+N09,,intersection,40,0,true,Unnamed pedestrian path intersection
