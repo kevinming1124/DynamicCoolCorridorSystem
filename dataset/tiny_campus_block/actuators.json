@@ -1,0 +1,73 @@
+{
+  "actuators": [
+    {
+      "actuator_id": "A01",
+      "actuator_type": "misting_point",
+      "position": {
+        "anchor_node": "N08",
+        "x_m": 40,
+        "y_m": 20
+      },
+      "parameters": {
+        "cooling_radius_m": 15,
+        "max_heat_reduction_c": 3
+      },
+      "edge_relationships": [],
+      "description": "Central Green misting point for localized heat reduction"
+    },
+    {
+      "actuator_id": "A02",
+      "actuator_type": "traffic_signal",
+      "position": {
+        "anchor_node": "N09",
+        "x_m": 40,
+        "y_m": 0
+      },
+      "parameters": {
+        "default_wait_time_s": 30,
+        "min_wait_time_s": 10,
+        "max_wait_time_s": 90
+      },
+      "edge_relationships": [
+        {
+          "edge_id": "E07",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E08",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E12",
+          "relationship": "controls"
+        }
+      ],
+      "description": "Adjustable pedestrian signal at the south path intersection"
+    },
+    {
+      "actuator_id": "A03",
+      "actuator_type": "directional_led",
+      "position": {
+        "anchor_node": "N02",
+        "x_m": 40,
+        "y_m": 60
+      },
+      "parameters": {},
+      "edge_relationships": [
+        {
+          "edge_id": "E02",
+          "relationship": "recommends"
+        },
+        {
+          "edge_id": "E03",
+          "relationship": "recommends"
+        },
+        {
+          "edge_id": "E10",
+          "relationship": "recommends"
+        }
+      ],
+      "description": "Directional sign for distributing pedestrian flow from Campus Dining"
+    }
+  ]
+}

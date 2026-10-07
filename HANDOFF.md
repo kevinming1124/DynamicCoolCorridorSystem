@@ -31,7 +31,7 @@ python -m compileall -q main.py utils models
 3. `models/_template/README.md` — how to create a model.
 4. `models/_template/model.py` — current model contract implementation.
 5. `utils/pipeline/contracts.py` — shared `ModelInput` and `ModelOutput`.
-6. `utils/graph/` — shared graph entities, graph state, and CSV loading.
+6. `utils/graph/` — shared graph entities, graph state, and JSON loading.
 7. `dataset/tiny_campus_block/README.md` — dataset schema and assumptions.
 
 ## Project structure
@@ -42,9 +42,9 @@ DynamicCoolCorridorSystem/
 ├── requirements.txt               # Runtime dependencies
 ├── utils/
 │   ├── graph/
-│   │   ├── entities.py             # GraphNode and GraphEdge
+│   │   ├── entities.py             # GraphNode, GraphEdge, and StaticActuator
 │   │   ├── graph.py                # CampusGraph and property updates
-│   │   └── csv_loader.py           # CSV parsing and validation
+│   │   └── json_loader.py          # JSON parsing and validation
 │   └── pipeline/
 │       └── contracts.py            # ModelInput and ModelOutput
 ├── models/
@@ -54,9 +54,11 @@ DynamicCoolCorridorSystem/
 │       └── README.md               # Model creation guide
 ├── dataset/
 │   └── tiny_campus_block/
-│       ├── nodes.csv               # Canonical node data
-│       ├── edges.csv               # Canonical edge data
-│       ├── tiny_campus_block.xlsx  # Human-editable mirror
+│       ├── dataset.json             # Dataset manifest and metadata
+│       ├── nodes.json               # Canonical node data
+│       ├── edges.json               # Canonical edge data
+│       ├── actuators.json           # Canonical static actuator data
+│       ├── tiny_campus_block.xlsx   # Human-readable mirror
 │       └── README.md               # Dataset documentation
 └── debug/                          # Ignored local model outputs
 ```
@@ -75,7 +77,7 @@ Models must depend on `utils`. Models must not define their own copies of
 The pipeline data flow is:
 
 ```text
-nodes.csv + edges.csv
+dataset.json → nodes.json + edges.json + actuators.json
         ↓
 load_campus_graph(...)
         ↓
@@ -94,10 +96,11 @@ in place.
 
 ## Static data and dynamic properties
 
-Keep static facts in the CSV dataset:
+Keep static facts in the JSON dataset:
 
 - Node identifier, name, type, coordinates, accessibility, and description.
 - Edge identifier, endpoints, distance, walking time, surface, and accessibility.
+- Static actuator placement, type, graph references, and operating limits.
 
 Keep changing or calculated values in `node.properties` or `edge.properties`:
 
@@ -199,11 +202,11 @@ configuration before returning the model instance.
 
 ## Dataset rules
 
-The CSV files are canonical. The workbook is a human-editable mirror.
+The JSON files are canonical. The workbook is a human-readable mirror.
 
 When changing the dataset:
 
-1. Keep `nodes.csv`, `edges.csv`, and `tiny_campus_block.xlsx` synchronized.
+1. Edit the JSON files first and refresh `tiny_campus_block.xlsx` afterward.
 2. Keep node and edge identifiers unique.
 3. Ensure every edge endpoint references an existing node.
 4. Do not create self-loop edges.
@@ -211,17 +214,18 @@ When changing the dataset:
 6. Allow a blank `location_name` only when a node has no recognized place name,
    such as an intersection.
 7. Update `dataset/tiny_campus_block/README.md` when the schema changes.
+8. Ensure actuator anchors and referenced edges exist in the graph.
 
-Current edge schema:
+Current edge record fields:
 
 ```text
-edge_id,from_node,to_node,distance_m,walk_time_min,surface_type,accessible
+edge_id, from_node, to_node, distance_m, walk_time_min, surface_type, accessible
 ```
 
-Current node schema:
+Current node record fields:
 
 ```text
-node_id,location_name,location_type,x_m,y_m,accessible,description
+node_id, location_name, location_type, x_m, y_m, accessible, description
 ```
 
 ## Running and debugging
@@ -293,8 +297,9 @@ Work in the DynamicCoolCorridorSystem repository. Read HANDOFF.md, README.md,
 main.py, models/_template/README.md, and the relevant files under utils before
 editing. Preserve the existing architecture and decisions documented in
 HANDOFF.md. Do not duplicate shared graph or pipeline classes inside models.
-Treat nodes.csv and edges.csv as canonical static data and keep dynamic values
-in graph properties. Do not add dependencies unless necessary; record any new
+Treat dataset.json, nodes.json, edges.json, and actuators.json as canonical static data and keep
+dynamic values in graph properties or model state. Do not add dependencies unless
+necessary; record any new
 runtime package in requirements.txt. Do not recreate the removed unittest suite
 unless I explicitly request it. Inspect the current Git status before editing,
 preserve unrelated changes, and smoke-check the result with python main.py,

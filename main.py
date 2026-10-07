@@ -61,7 +61,7 @@ def parse_arguments() -> argparse.Namespace:
         "--dataset",
         type=Path,
         default=DEFAULT_DATASET,
-        help="Directory containing nodes.csv and edges.csv",
+        help="Directory containing dataset.json and its referenced JSON files",
     )
     parser.add_argument(
         "--debug-dir",

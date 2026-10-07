@@ -1,0 +1,17 @@
+{
+  "dataset_id": "tiny_campus_block",
+  "description": "Fictional campus graph for development and model examples",
+  "graph": {
+    "directed": false,
+    "coordinate_system": {
+      "type": "local_cartesian",
+      "unit": "meter",
+      "origin": "Southwest corner of the test block"
+    }
+  },
+  "files": {
+    "nodes": "nodes.json",
+    "edges": "edges.json",
+    "actuators": "actuators.json"
+  }
+}

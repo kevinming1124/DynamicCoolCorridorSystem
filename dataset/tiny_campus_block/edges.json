@@ -1,0 +1,112 @@
+{
+  "edges": [
+    {
+      "edge_id": "E01",
+      "from_node": "N01",
+      "to_node": "N02",
+      "distance_m": 40.0,
+      "walk_time_min": 0.48,
+      "surface_type": "paved",
+      "accessible": true
+    },
+    {
+      "edge_id": "E02",
+      "from_node": "N02",
+      "to_node": "N03",
+      "distance_m": 40.0,
+      "walk_time_min": 0.48,
+      "surface_type": "paved",
+      "accessible": true
+    },
+    {
+      "edge_id": "E03",
+      "from_node": "N02",
+      "to_node": "N04",
+      "distance_m": 40.0,
+      "walk_time_min": 0.48,
+      "surface_type": "paved",
+      "accessible": true
+    },
+    {
+      "edge_id": "E04",
+      "from_node": "N03",
+      "to_node": "N05",
+      "distance_m": 40.0,
+      "walk_time_min": 0.48,
+      "surface_type": "paved",
+      "accessible": true
+    },
+    {
+      "edge_id": "E05",
+      "from_node": "N04",
+      "to_node": "N05",
+      "distance_m": 40.0,
+      "walk_time_min": 0.48,
+      "surface_type": "paved",
+      "accessible": true
+    },
+    {
+      "edge_id": "E06",
+      "from_node": "N01",
+      "to_node": "N06",
+      "distance_m": 60.0,
+      "walk_time_min": 0.71,
+      "surface_type": "paved",
+      "accessible": true
+    },
+    {
+      "edge_id": "E07",
+      "from_node": "N06",
+      "to_node": "N09",
+      "distance_m": 40.0,
+      "walk_time_min": 0.48,
+      "surface_type": "paved",
+      "accessible": true
+    },
+    {
+      "edge_id": "E08",
+      "from_node": "N09",
+      "to_node": "N07",
+      "distance_m": 40.0,
+      "walk_time_min": 0.48,
+      "surface_type": "paved",
+      "accessible": true
+    },
+    {
+      "edge_id": "E09",
+      "from_node": "N03",
+      "to_node": "N07",
+      "distance_m": 60.0,
+      "walk_time_min": 0.71,
+      "surface_type": "paved",
+      "accessible": true
+    },
+    {
+      "edge_id": "E10",
+      "from_node": "N02",
+      "to_node": "N08",
+      "distance_m": 40.0,
+      "walk_time_min": 0.48,
+      "surface_type": "paved",
+      "accessible": true
+    },
+    {
+      "edge_id": "E11",
+      "from_node": "N04",
+      "to_node": "N08",
+      "distance_m": 80.0,
+      "walk_time_min": 0.95,
+      "surface_type": "paved",
+      "accessible": true
+    },
+    {
+      "edge_id": "E12",
+      "from_node": "N09",
+      "to_node": "N08",
+      "distance_m": 20.0,
+      "walk_time_min": 0.24,
+      "surface_type": "paved",
+      "accessible": true
+    }
+  ]
+}

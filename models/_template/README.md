@@ -1,7 +1,7 @@
 # Human-editable model template
 
 Use this folder as the starting point for any graph model in the system. It uses
-only the Python standard library. Shared graph types, CSV loading, and pipeline
+only the Python standard library. Shared graph types, JSON loading, and pipeline
 contracts come from the `utils` package.
 
 ## Create a model
@@ -69,7 +69,7 @@ second_output = second_model.predict(second_input)
 
 Set the second model's `input_property` to the first model's `output_property`.
 Existing dynamic properties remain on the graph, so later models can use any
-earlier result without changing the CSV dataset.
+earlier result without changing the JSON dataset.
 
 ## Save output for debugging
 
