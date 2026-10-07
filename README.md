@@ -25,7 +25,7 @@ introduced by the code.
 
 - DynamicCoolCorridorSystem/
     - utils/
-        - graph/ (shared nodes, edges, graph state, and CSV loading)
+        - graph/ (shared nodes, edges, graph state, and JSON loading)
         - pipeline/ (shared model input and output contracts)
     - models/
         - _template/ (copyable, human-editable model starter)
@@ -67,4 +67,4 @@ stage.
 
 [`dataset/tiny_campus_block`](dataset/tiny_campus_block/README.md) contains a
 small campus graph with node coordinates, location categories, walkable edges,
-distances, and accessibility information.
+distances, accessibility information, and static controllable infrastructure.

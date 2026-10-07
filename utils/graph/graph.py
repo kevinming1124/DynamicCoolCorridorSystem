@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any, Mapping
 
-from .entities import GraphEdge, GraphNode
+from .entities import GraphEdge, GraphNode, StaticActuator
 
 
 @dataclass(frozen=True)
 class CampusGraph:
     nodes: Mapping[str, GraphNode]
     edges: tuple[GraphEdge, ...]
+    actuators: Mapping[str, StaticActuator] = field(default_factory=dict)
 
     def with_edge_property(
         self, name: str, values: Mapping[str, float]
@@ -41,5 +42,6 @@ class CampusGraph:
         return {
             "nodes": [node.as_dict() for node in self.nodes.values()],
             "edges": [edge.as_dict() for edge in self.edges],
+            "actuators": [actuator.as_dict() for actuator in self.actuators.values()],
         }
 

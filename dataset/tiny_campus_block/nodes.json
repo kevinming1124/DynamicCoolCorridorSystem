@@ -1,0 +1,85 @@
+{
+  "nodes": [
+    {
+      "node_id": "N01",
+      "location_name": "West Hall",
+      "location_type": "dormitory",
+      "x_m": 0,
+      "y_m": 60,
+      "accessible": true,
+      "description": "Student residence on the west side"
+    },
+    {
+      "node_id": "N02",
+      "location_name": "Campus Dining",
+      "location_type": "dining_hall",
+      "x_m": 40,
+      "y_m": 60,
+      "accessible": true,
+      "description": "Main dining facility"
+    },
+    {
+      "node_id": "N03",
+      "location_name": "Science Center",
+      "location_type": "teaching_building",
+      "x_m": 80,
+      "y_m": 60,
+      "accessible": true,
+      "description": "Laboratories and science classrooms"
+    },
+    {
+      "node_id": "N04",
+      "location_name": "Main Library",
+      "location_type": "library",
+      "x_m": 40,
+      "y_m": 100,
+      "accessible": true,
+      "description": "Library and study space"
+    },
+    {
+      "node_id": "N05",
+      "location_name": "East Lecture Hall",
+      "location_type": "teaching_building",
+      "x_m": 80,
+      "y_m": 100,
+      "accessible": true,
+      "description": "General-purpose lecture rooms"
+    },
+    {
+      "node_id": "N06",
+      "location_name": "Recreation Center",
+      "location_type": "recreation_center",
+      "x_m": 0,
+      "y_m": 0,
+      "accessible": true,
+      "description": "Gymnasium and recreation facilities"
+    },
+    {
+      "node_id": "N07",
+      "location_name": "South Transit Stop",
+      "location_type": "transit_stop",
+      "x_m": 80,
+      "y_m": 0,
+      "accessible": true,
+      "description": "Campus shuttle and bus stop"
+    },
+    {
+      "node_id": "N08",
+      "location_name": "Central Green",
+      "location_type": "open_space",
+      "x_m": 40,
+      "y_m": 20,
+      "accessible": true,
+      "description": "Landscaped gathering area"
+    },
+    {
+      "node_id": "N09",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 40,
+      "y_m": 0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    }
+  ]
+}
