@@ -25,7 +25,7 @@ introduced by the code.
 
 - DynamicCoolCorridorSystem/
     - utils/
-        - graph/ (shared nodes, edges, graph state, and JSON loading)
+        - graph/ (shared nodes, edges, actuators, graph state, and JSON loading)
         - pipeline/ (shared model input and output contracts)
     - models/
         - _template/ (copyable, human-editable model starter)
@@ -36,8 +36,9 @@ introduced by the code.
 ## Creating a model
 
 Start with [`models/_template`](models/_template/README.md). Each model keeps
-human-tunable values in a small `config.json` file and exposes a consistent
-Python input/output interface.
+human-tunable values in a small `config.json`, declares zero or more input
+properties and one or more output properties, and exposes the shared Python
+input/output interface.
 
 Run the template example and checks from the project root:
 
@@ -61,10 +62,11 @@ python main.py --debug-dir debug
 
 Add future model stages in execution order inside `build_pipeline()` in
 `main.py`. Each stage automatically receives the graph produced by the previous
-stage.
+stage, including every dynamic property accumulated so far.
 
 ## Testing dataset
 
 [`dataset/tiny_campus_block`](dataset/tiny_campus_block/README.md) contains a
 small campus graph with node coordinates, location categories, walkable edges,
-distances, accessibility information, and static controllable infrastructure.
+distances, accessibility information, static controllable infrastructure, and
+loader-derived initial actuator state.

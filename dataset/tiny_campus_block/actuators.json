@@ -9,7 +9,6 @@
         "y_m": 20
       },
       "parameters": {
-        "cooling_radius_m": 15,
         "max_heat_reduction_c": 3
       },
       "edge_relationships": [],

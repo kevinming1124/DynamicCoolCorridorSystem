@@ -7,6 +7,9 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Mapping
 
 
+DynamicPropertyValue = float | str | None
+
+
 def _updated_properties(
     current: Mapping[str, float], name: str, value: float, entity_id: str
 ) -> dict[str, float]:
@@ -18,6 +21,36 @@ def _updated_properties(
     if not math.isfinite(numeric_value):
         raise ValueError(f"{entity_id}: dynamic property '{name}' must be finite")
     return {**current, name.strip(): numeric_value}
+
+
+def _updated_actuator_properties(
+    current: Mapping[str, DynamicPropertyValue],
+    name: str,
+    value: DynamicPropertyValue,
+    entity_id: str,
+) -> dict[str, DynamicPropertyValue]:
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError(f"{entity_id}: dynamic property name cannot be blank")
+    property_name = name.strip()
+    if isinstance(value, bool) or not isinstance(value, (int, float, str, type(None))):
+        raise ValueError(
+            f"{entity_id}: actuator property '{property_name}' must be a "
+            "number, string, or null"
+        )
+    if isinstance(value, (int, float)):
+        numeric_value = float(value)
+        if not math.isfinite(numeric_value):
+            raise ValueError(
+                f"{entity_id}: actuator property '{property_name}' must be finite"
+            )
+        value = numeric_value
+    elif isinstance(value, str):
+        value = value.strip()
+        if not value:
+            raise ValueError(
+                f"{entity_id}: actuator property '{property_name}' cannot be blank"
+            )
+    return {**current, property_name: value}
 
 
 @dataclass(frozen=True)
@@ -82,7 +115,7 @@ class GraphEdge:
 
 @dataclass(frozen=True)
 class StaticActuator:
-    """Fixed infrastructure that can change heat or pedestrian movement."""
+    """Fixed infrastructure with static limits and dynamic runtime properties."""
 
     actuator_id: str
     actuator_type: str
@@ -91,12 +124,69 @@ class StaticActuator:
     y_m: float
     controlled_edges: tuple[str, ...] = ()
     recommended_edges: tuple[str, ...] = ()
-    cooling_radius_m: float | None = None
     max_heat_reduction_c: float | None = None
     default_wait_time_s: float | None = None
     min_wait_time_s: float | None = None
     max_wait_time_s: float | None = None
     description: str = ""
+    properties: Mapping[str, DynamicPropertyValue] = field(default_factory=dict)
+
+    def with_property(
+        self, name: str, value: DynamicPropertyValue
+    ) -> "StaticActuator":
+        property_name = name.strip() if isinstance(name, str) else name
+        if property_name == "status":
+            if self.actuator_type in {"misting_point", "directional_led"}:
+                if not isinstance(value, str) or value not in {"on", "off"}:
+                    raise ValueError(
+                        f"{self.actuator_id}: 'status' must be 'on' or 'off'"
+                    )
+            elif value is not None:
+                raise ValueError(
+                    f"{self.actuator_id}: 'status' is not used by traffic signals"
+                )
+        elif property_name == "wait_time_s":
+            if self.actuator_type == "traffic_signal":
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    raise ValueError(
+                        f"{self.actuator_id}: 'wait_time_s' must be a number"
+                    )
+                numeric_value = float(value)
+                if not math.isfinite(numeric_value):
+                    raise ValueError(
+                        f"{self.actuator_id}: 'wait_time_s' must be finite"
+                    )
+                assert self.min_wait_time_s is not None
+                assert self.max_wait_time_s is not None
+                if not self.min_wait_time_s <= numeric_value <= self.max_wait_time_s:
+                    raise ValueError(
+                        f"{self.actuator_id}: 'wait_time_s' must be between "
+                        f"{self.min_wait_time_s} and {self.max_wait_time_s}"
+                    )
+                value = numeric_value
+            elif value is not None:
+                raise ValueError(
+                    f"{self.actuator_id}: 'wait_time_s' is only used by traffic signals"
+                )
+        elif property_name == "recommended_edge":
+            if self.actuator_type == "directional_led":
+                if value is not None and value not in self.recommended_edges:
+                    raise ValueError(
+                        f"{self.actuator_id}: 'recommended_edge' must be null or one "
+                        "of the actuator's recommended edges"
+                    )
+            elif value is not None:
+                raise ValueError(
+                    f"{self.actuator_id}: 'recommended_edge' is only used by "
+                    "directional LEDs"
+                )
+
+        return replace(
+            self,
+            properties=_updated_actuator_properties(
+                self.properties, property_name, value, self.actuator_id
+            ),
+        )
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -107,11 +197,10 @@ class StaticActuator:
             "y_m": self.y_m,
             "controlled_edges": list(self.controlled_edges),
             "recommended_edges": list(self.recommended_edges),
-            "cooling_radius_m": self.cooling_radius_m,
             "max_heat_reduction_c": self.max_heat_reduction_c,
             "default_wait_time_s": self.default_wait_time_s,
             "min_wait_time_s": self.min_wait_time_s,
             "max_wait_time_s": self.max_wait_time_s,
             "description": self.description,
+            "properties": dict(self.properties),
         }
-

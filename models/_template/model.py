@@ -15,8 +15,10 @@ from typing import Any, Mapping
 
 from utils import (
     CampusGraph,
+    DynamicPropertyValue,
     GraphEdge,
     GraphNode,
+    StaticActuator,
     ModelInput,
     ModelOutput,
     load_campus_graph,
@@ -36,8 +38,8 @@ class ModelConfig:
     description: str
     enabled: bool
     property_target: str
-    output_property: str
-    input_property: str | None
+    output_properties: tuple[str, ...]
+    input_properties: tuple[str, ...]
     parameters: Mapping[str, float]
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
@@ -58,7 +60,8 @@ class ModelConfig:
             "description",
             "enabled",
             "property_target",
-            "output_property",
+            "output_properties",
+            "input_properties",
             "parameters",
         }
         missing = required - raw.keys()
@@ -70,15 +73,36 @@ class ModelConfig:
             raise ValueError("'description' must be a string")
         if not isinstance(raw["enabled"], bool):
             raise ValueError("'enabled' must be true or false")
-        if raw["property_target"] not in {"edge", "node"}:
-            raise ValueError("'property_target' must be 'edge' or 'node'")
-        if not isinstance(raw["output_property"], str) or not raw["output_property"].strip():
-            raise ValueError("'output_property' must be a non-empty string")
-        input_property = raw.get("input_property")
-        if input_property is not None and (
-            not isinstance(input_property, str) or not input_property.strip()
+        if raw["property_target"] not in {"edge", "node", "actuator"}:
+            raise ValueError(
+                "'property_target' must be 'edge', 'node', or 'actuator'"
+            )
+        raw_output_properties = raw["output_properties"]
+        if not isinstance(raw_output_properties, list) or not raw_output_properties:
+            raise ValueError("'output_properties' must be a non-empty JSON array")
+        if any(
+            not isinstance(name, str) or not name.strip()
+            for name in raw_output_properties
         ):
-            raise ValueError("'input_property' must be null or a non-empty string")
+            raise ValueError(
+                "Every item in 'output_properties' must be a non-empty string"
+            )
+        output_properties = tuple(name.strip() for name in raw_output_properties)
+        if len(set(output_properties)) != len(output_properties):
+            raise ValueError("'output_properties' must not contain duplicate names")
+        raw_input_properties = raw["input_properties"]
+        if not isinstance(raw_input_properties, list):
+            raise ValueError("'input_properties' must be a JSON array")
+        if any(
+            not isinstance(name, str) or not name.strip()
+            for name in raw_input_properties
+        ):
+            raise ValueError(
+                "Every item in 'input_properties' must be a non-empty string"
+            )
+        input_properties = tuple(name.strip() for name in raw_input_properties)
+        if len(set(input_properties)) != len(input_properties):
+            raise ValueError("'input_properties' must not contain duplicate names")
         if not isinstance(raw["parameters"], dict):
             raise ValueError("'parameters' must be a JSON object")
         if not isinstance(raw.get("metadata", {}), dict):
@@ -98,8 +122,8 @@ class ModelConfig:
             description=raw["description"],
             enabled=raw["enabled"],
             property_target=raw["property_target"],
-            output_property=raw["output_property"].strip(),
-            input_property=input_property.strip() if input_property else None,
+            output_properties=output_properties,
+            input_properties=input_properties,
             parameters=parameters,
             metadata=raw.get("metadata", {}),
         )
@@ -120,81 +144,213 @@ class ModelTemplate:
             raise RuntimeError(f"Model '{self.config.model_name}' is disabled")
 
         if self.config.property_target == "edge":
-            values = {
-                edge.edge_id: self.calculate_edge(edge, model_input.graph)
+            entity_values = {
+                edge.edge_id: self._validated_output_values(
+                    self.calculate_edge(edge, model_input.graph), edge.edge_id
+                )
                 for edge in model_input.graph.edges
             }
-            graph = model_input.graph.with_edge_property(
-                self.config.output_property, values
-            )
-        else:
-            values = {
-                node_id: self.calculate_node(node, model_input.graph)
+        elif self.config.property_target == "node":
+            entity_values = {
+                node_id: self._validated_output_values(
+                    self.calculate_node(node, model_input.graph), node_id
+                )
                 for node_id, node in model_input.graph.nodes.items()
             }
-            graph = model_input.graph.with_node_property(
-                self.config.output_property, values
-            )
+        else:
+            entity_values = {
+                actuator_id: self._validated_output_values(
+                    self.calculate_actuator(actuator, model_input.graph), actuator_id
+                )
+                for actuator_id, actuator in model_input.graph.actuators.items()
+            }
+
+        values_by_property = {
+            property_name: {
+                entity_id: values[property_name]
+                for entity_id, values in entity_values.items()
+            }
+            for property_name in self.config.output_properties
+        }
+
+        graph = model_input.graph
+        for property_name, values in values_by_property.items():
+            if self.config.property_target == "edge":
+                graph = graph.with_edge_property(property_name, values)
+            elif self.config.property_target == "node":
+                graph = graph.with_node_property(property_name, values)
+            else:
+                graph = graph.with_actuator_property(property_name, values)
 
         return ModelOutput(
             model_name=self.config.model_name,
             property_target=self.config.property_target,
-            property_name=self.config.output_property,
-            property_values=values,
+            property_names=self.config.output_properties,
+            property_values=values_by_property,
             graph=graph,
             diagnostics={
                 "node_count": len(graph.nodes),
                 "edge_count": len(graph.edges),
-                "input_property": self.config.input_property,
+                "actuator_count": len(graph.actuators),
+                "input_properties": list(self.config.input_properties),
             },
         )
 
-    def calculate_edge(self, edge: GraphEdge, graph: CampusGraph) -> float:
-        """Calculate one dynamic edge property.
+    def calculate_edge(
+        self, edge: GraphEdge, graph: CampusGraph
+    ) -> Mapping[str, float]:
+        """Calculate all configured dynamic edge properties.
 
         HUMAN-EDITABLE SECTION
         ----------------------
-        When input_property is null, the example starts with distance. When it
-        names an earlier property, the example uses that previous model result.
+        With no input properties, the example starts with distance. When one or
+        more are configured, the example sums those earlier model results.
         """
         del graph  # Available for formulas that need neighboring nodes or edges.
-        base_value = self._input_value(edge.properties, edge.distance_m, edge.edge_id)
-        value = base_value * self._parameter("base_weight")
-        if not edge.accessible:
-            value += self._parameter("inaccessible_penalty")
-        return value
+        input_values = self._numeric_input_values(edge.properties, edge.edge_id)
+        base_value = sum(input_values.values()) if input_values else edge.distance_m
+        return {
+            "distance_cost": base_value * self._parameter("base_weight"),
+            "accessibility_cost": (
+                0.0 if edge.accessible else self._parameter("inaccessible_penalty")
+            ),
+        }
 
-    def calculate_node(self, node: GraphNode, graph: CampusGraph) -> float:
-        """Calculate one dynamic node property.
+    def calculate_node(
+        self, node: GraphNode, graph: CampusGraph
+    ) -> Mapping[str, float]:
+        """Calculate all configured dynamic node properties.
 
         HUMAN-EDITABLE SECTION
         ----------------------
-        The default uses an earlier node property when configured; otherwise it
+        The default sums earlier node properties when configured; otherwise it
         uses the node's number of incident edges.
         """
         incident_edge_count = sum(
             edge.from_node == node.node_id or edge.to_node == node.node_id
             for edge in graph.edges
         )
-        base_value = self._input_value(
-            node.properties, float(incident_edge_count), node.node_id
+        input_values = self._numeric_input_values(node.properties, node.node_id)
+        base_value = (
+            sum(input_values.values())
+            if input_values
+            else float(incident_edge_count)
         )
-        return base_value * self._parameter("base_weight")
+        return {
+            "distance_cost": base_value * self._parameter("base_weight"),
+            "accessibility_cost": (
+                0.0 if node.accessible else self._parameter("inaccessible_penalty")
+            ),
+        }
 
-    def _input_value(
+    def calculate_actuator(
+        self, actuator: StaticActuator, graph: CampusGraph
+    ) -> Mapping[str, DynamicPropertyValue]:
+        """Calculate all configured dynamic actuator properties.
+
+        HUMAN-EDITABLE SECTION
+        ----------------------
+        The starter preserves the named actuator properties. A control model can
+        use ``input_values`` and graph state to return new status, wait-time, or
+        recommended-edge values.
+        """
+        del graph  # Available for formulas that need nodes, edges, or actuators.
+        input_values = self._input_values(actuator.properties, actuator.actuator_id)
+        return {
+            name: input_values.get(name, actuator.properties.get(name))
+            for name in self.config.output_properties
+        }
+
+    def _validated_output_values(
+        self,
+        values: Mapping[str, DynamicPropertyValue],
+        entity_id: str,
+    ) -> dict[str, DynamicPropertyValue]:
+        if not isinstance(values, Mapping):
+            raise ValueError(f"{entity_id}: calculation must return a mapping")
+
+        expected = set(self.config.output_properties)
+        actual = set(values)
+        if actual != expected:
+            missing = sorted(expected - actual)
+            unexpected = sorted(actual - expected)
+            details = []
+            if missing:
+                details.append(f"missing {missing}")
+            if unexpected:
+                details.append(f"unexpected {unexpected}")
+            raise ValueError(
+                f"{entity_id}: calculated properties do not match "
+                f"'output_properties' ({'; '.join(details)})"
+            )
+
+        validated: dict[str, DynamicPropertyValue] = {}
+        for name in self.config.output_properties:
+            value = values[name]
+            if self.config.property_target != "actuator":
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    raise ValueError(
+                        f"{entity_id}: output property '{name}' must be a number"
+                    )
+                numeric_value = float(value)
+                if not math.isfinite(numeric_value):
+                    raise ValueError(
+                        f"{entity_id}: output property '{name}' must be finite"
+                    )
+                validated[name] = numeric_value
+                continue
+
+            if isinstance(value, bool) or not isinstance(
+                value, (int, float, str, type(None))
+            ):
+                raise ValueError(
+                    f"{entity_id}: actuator property '{name}' must be a "
+                    "number, string, or null"
+                )
+            if isinstance(value, (int, float)):
+                numeric_value = float(value)
+                if not math.isfinite(numeric_value):
+                    raise ValueError(
+                        f"{entity_id}: actuator property '{name}' must be finite"
+                    )
+                value = numeric_value
+            elif isinstance(value, str):
+                value = value.strip()
+                if not value:
+                    raise ValueError(
+                        f"{entity_id}: actuator property '{name}' cannot be blank"
+                    )
+            validated[name] = value
+        return validated
+
+    def _input_values(
+        self,
+        properties: Mapping[str, DynamicPropertyValue],
+        entity_id: str,
+    ) -> dict[str, DynamicPropertyValue]:
+        missing = [
+            name for name in self.config.input_properties if name not in properties
+        ]
+        if missing:
+            raise ValueError(
+                f"{entity_id}: input properties are missing: {', '.join(missing)}"
+            )
+        return {name: properties[name] for name in self.config.input_properties}
+
+    def _numeric_input_values(
         self,
         properties: Mapping[str, float],
-        default: float,
         entity_id: str,
-    ) -> float:
-        if self.config.input_property is None:
-            return default
-        try:
-            return properties[self.config.input_property]
-        except KeyError as exc:
-            raise ValueError(
-                f"{entity_id}: input property '{self.config.input_property}' is missing"
-            ) from exc
+    ) -> dict[str, float]:
+        values = self._input_values(properties, entity_id)
+        numeric_values: dict[str, float] = {}
+        for name, value in values.items():
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(
+                    f"{entity_id}: input property '{name}' must be numeric"
+                )
+            numeric_values[name] = float(value)
+        return numeric_values
 
     def _parameter(self, name: str) -> float:
         try:

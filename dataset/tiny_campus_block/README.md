@@ -8,7 +8,7 @@ It is intentionally small enough for development examples.
 - `dataset.json` is the manifest and records dataset-wide metadata.
 - `nodes.json` contains graph locations and coordinates.
 - `edges.json` contains the walking connections between nodes.
-- `actuators.json` contains fixed controllable infrastructure.
+- `actuators.json` contains fixed controllable infrastructure and operating limits.
 - `tiny_campus_block.xlsx` is a human-readable mirror of the JSON data.
 
 The JSON files are canonical. Edit the JSON files, validate them by loading the
@@ -67,9 +67,22 @@ Each object in `actuators.json` contains common fields plus a type-specific
 | `edge_relationships` | Edge links with `controls` or `recommends` semantics |
 | `description` | Short explanation of the actuator |
 
+Runtime actuator properties are initialized by the loader rather than stored in
+the static dataset:
+
+| Actuator type | Initial runtime properties |
+| --- | --- |
+| `misting_point` | `status: "off"`, `wait_time_s: null`, `recommended_edge: null` |
+| `traffic_signal` | `status: null`, `wait_time_s: default_wait_time_s`, `recommended_edge: null` |
+| `directional_led` | `status: "off"`, `wait_time_s: null`, `recommended_edge: null` |
+
+`recommended_edge` may later select one edge from the LED's `recommends`
+relationships. Keeping these values out of `actuators.json` preserves the file as
+static infrastructure data.
+
 Required type-specific parameters:
 
-- `misting_point`: `cooling_radius_m` and `max_heat_reduction_c`
+- `misting_point`: `max_heat_reduction_c`
 - `traffic_signal`: `default_wait_time_s`, `min_wait_time_s`, and
   `max_wait_time_s`
 - `directional_led`: no static parameters at present
@@ -85,7 +98,8 @@ reference edges.
 - Every actuator edge relationship must reference an existing edge.
 - Self-loop edges are not allowed and edge distances must be positive.
 - Actuator parameters must exactly match the selected actuator type.
-- Dynamic values such as shade, temperature, current misting intensity, active
-  wait time, and displayed LED direction belong in runtime model state.
+- Dynamic values such as shade and temperature belong in runtime graph
+  properties. Actuator status, active wait time, and the selected LED edge belong
+  in actuator runtime properties.
 
 This dataset has 9 nodes, 12 edges, and 3 static actuators and is fully connected.
