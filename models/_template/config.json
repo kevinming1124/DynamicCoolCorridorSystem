@@ -1,17 +1,15 @@
 {
   "model_name": "example_edge_cost_model",
-  "description": "Calculates a distance-based dynamic property on each graph edge.",
+  "description": "Calculates distance and accessibility costs on each graph edge.",
   "enabled": true,
   "property_target": "edge",
-  "output_property": "distance_cost",
-  "input_property": null,
+  "output_properties": [
+    "distance_cost",
+    "accessibility_cost"
+  ],
+  "input_properties": [],
   "parameters": {
     "base_weight": 1.0,
     "inaccessible_penalty": 1000.0
-  },
-  "metadata": {
-    "owner": "",
-    "version": "0.1.0",
-    "notes": "Edit values in this file without changing Python code."
   }
 }

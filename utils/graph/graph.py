@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import Any, Mapping
 
-from .entities import GraphEdge, GraphNode, StaticActuator
+from .entities import DynamicPropertyValue, GraphEdge, GraphNode, StaticActuator
 
 
 @dataclass(frozen=True)
@@ -38,10 +38,26 @@ class CampusGraph:
             },
         )
 
+    def with_actuator_property(
+        self,
+        name: str,
+        values: Mapping[str, DynamicPropertyValue],
+    ) -> "CampusGraph":
+        if set(values) != set(self.actuators):
+            raise ValueError(
+                "Actuator property values must contain every actuator ID exactly once"
+            )
+        return replace(
+            self,
+            actuators={
+                actuator_id: actuator.with_property(name, values[actuator_id])
+                for actuator_id, actuator in self.actuators.items()
+            },
+        )
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "nodes": [node.as_dict() for node in self.nodes.values()],
             "edges": [edge.as_dict() for edge in self.edges],
             "actuators": [actuator.as_dict() for actuator in self.actuators.values()],
         }
-

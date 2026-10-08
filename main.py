@@ -81,9 +81,13 @@ def main() -> None:
     )
 
     print(f"Pipeline completed: {final_output.model_name}")
+    property_names = ", ".join(
+        f"'{name}'" for name in final_output.property_names
+    )
+    target_count = len(final_output.property_values[final_output.property_names[0]])
     print(
-        f"Generated '{final_output.property_name}' for "
-        f"{len(final_output.property_values)} {final_output.property_target}s."
+        f"Generated {property_names} for "
+        f"{target_count} {final_output.property_target}s."
     )
     if arguments.debug_dir is not None:
         print(f"Debug outputs saved to: {arguments.debug_dir}")
