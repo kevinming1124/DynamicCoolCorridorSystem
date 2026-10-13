@@ -136,15 +136,17 @@ class StaticActuator:
     ) -> "StaticActuator":
         property_name = name.strip() if isinstance(name, str) else name
         if property_name == "status":
-            if self.actuator_type in {"misting_point", "directional_led"}:
+            if self.actuator_type == "traffic_signal":
+                if value != "on":
+                    raise ValueError(
+                        f"{self.actuator_id}: traffic signal 'status' must always "
+                        "be 'on'"
+                    )
+            elif self.actuator_type in {"misting_point", "directional_led"}:
                 if not isinstance(value, str) or value not in {"on", "off"}:
                     raise ValueError(
                         f"{self.actuator_id}: 'status' must be 'on' or 'off'"
                     )
-            elif value is not None:
-                raise ValueError(
-                    f"{self.actuator_id}: 'status' is not used by traffic signals"
-                )
         elif property_name == "wait_time_s":
             if self.actuator_type == "traffic_signal":
                 if isinstance(value, bool) or not isinstance(value, (int, float)):

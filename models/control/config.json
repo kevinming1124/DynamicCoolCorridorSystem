@@ -1,0 +1,5 @@
+{
+  "model_name": "control_model",
+  "description": "Controls the existing state of campus actuators.",
+  "enabled": true
+}

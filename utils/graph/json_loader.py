@@ -230,7 +230,7 @@ def _actuator(record: JsonObject) -> StaticActuator:
             "status": (
                 "off"
                 if actuator_type in {"misting_point", "directional_led"}
-                else None
+                else "on"
             ),
             "wait_time_s": (
                 default_wait_time_s if actuator_type == "traffic_signal" else None
