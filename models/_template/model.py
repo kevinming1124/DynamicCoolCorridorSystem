@@ -78,8 +78,8 @@ class ModelConfig:
                 "'property_target' must be 'edge', 'node', or 'actuator'"
             )
         raw_output_properties = raw["output_properties"]
-        if not isinstance(raw_output_properties, list) or not raw_output_properties:
-            raise ValueError("'output_properties' must be a non-empty JSON array")
+        if not isinstance(raw_output_properties, list):
+            raise ValueError("'output_properties' must be a JSON array")
         if any(
             not isinstance(name, str) or not name.strip()
             for name in raw_output_properties

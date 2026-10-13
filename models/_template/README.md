@@ -9,8 +9,9 @@ contracts come from the `utils` package.
 1. Copy this `_template` folder into the relevant `models` category.
 2. Rename the copied folder, using lower-case words separated by underscores.
 3. Edit `config.json`. Most model tuning should happen there.
-4. Set `property_target` to `edge`, `node`, or `actuator`, and list one or more
-   clear names in `output_properties`.
+4. For a property-producing model, set `property_target` to `edge`, `node`, or
+   `actuator` and list clear names in `output_properties`. A state-only model
+   that only changes existing graph state may use an empty list.
 5. In `model.py`, rename `ModelTemplate` and change the formula in the clearly
    marked `HUMAN-EDITABLE SECTION` inside `calculate_edge`, `calculate_node`, or
    `calculate_actuator`.
@@ -30,7 +31,7 @@ For example, a heat-index model could live at
 | `description` | Plain-language explanation of the model |
 | `enabled` | Turns the model on or off |
 | `property_target` | Chooses whether every edge, node, or actuator receives the result |
-| `output_properties` | Non-empty list of property names stored on each target entity |
+| `output_properties` | Property names stored on each target entity, or an empty list for a state-only model |
 | `input_properties` | Earlier properties to consume, or an empty list for the model's default input |
 | `parameters` | Calculation weights a human can tune without changing code |
 
@@ -62,9 +63,10 @@ copied model can combine or reference individual inputs however its domain logic
 requires. If the list is empty, the example uses edge distance or node degree.
 Actuator inputs may also be strings or `null`.
 
-The selected calculation method must return a mapping containing every name in
-`output_properties` exactly once. Edge and node values must be finite numbers.
-Actuator values may be finite numbers, non-empty strings, or `null`. For example:
+When `output_properties` is not empty, the selected calculation method must
+return a mapping containing every configured name exactly once. Edge and node
+values must be finite numbers. Actuator values may be finite numbers, non-empty
+strings, or `null`. For example:
 
 ```python
 return {
@@ -79,6 +81,10 @@ property name to its complete target-entity value mapping. `ModelOutput` validat
 that the names and mappings agree and every target ID occurs exactly once. It
 also validates numeric edge/node values and the broader actuator value types.
 The updated graph contains every output so later stages can consume any of them.
+
+A state-only model may instead return `property_target=None`,
+`property_names=()`, and `property_values={}` while passing its updated graph.
+No placeholder output property is required.
 
 ## Actuator targets
 
@@ -95,10 +101,11 @@ within its static minimum and maximum. An LED recommendation may be `null` or on
 of that actuator's statically configured `recommended_edges`. These initial
 values are derived by the loader; they are not duplicated in `actuators.json`.
 
-For an actuator model, set `property_target` to `"actuator"`, use state names in
-`output_properties`, and implement `calculate_actuator()`. The starter method
-preserves the configured properties until model-specific control logic replaces
-them.
+For a property-producing actuator model, set `property_target` to `"actuator"`,
+use state names in `output_properties`, and implement `calculate_actuator()`.
+The starter method preserves the configured properties until model-specific
+control logic replaces them. A state-only controller may directly update
+existing actuator properties and return an empty property report instead.
 
 ## Pass results to the next model
 

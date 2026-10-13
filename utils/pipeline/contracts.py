@@ -19,18 +19,28 @@ class ModelInput:
 
 @dataclass(frozen=True)
 class ModelOutput:
+    """A graph stage result, optionally including newly generated properties.
+
+    State-only stages may leave ``property_target`` as ``None`` and return empty
+    ``property_names`` and ``property_values`` while passing an updated graph.
+    """
+
     model_name: str
-    property_target: str
+    property_target: str | None
     property_names: tuple[str, ...]
     property_values: Mapping[str, Mapping[str, DynamicPropertyValue]]
     graph: CampusGraph
     diagnostics: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if self.property_target not in {"edge", "node", "actuator"}:
-            raise ValueError("'property_target' must be 'edge', 'node', or 'actuator'")
-        if not self.property_names:
-            raise ValueError("'property_names' must contain at least one name")
+        if self.property_target not in {None, "edge", "node", "actuator"}:
+            raise ValueError(
+                "'property_target' must be null, 'edge', 'node', or 'actuator'"
+            )
+        if self.property_names and self.property_target is None:
+            raise ValueError(
+                "'property_target' is required when 'property_names' is not empty"
+            )
         if any(
             not isinstance(name, str) or not name.strip()
             for name in self.property_names
@@ -41,11 +51,14 @@ class ModelOutput:
         if set(self.property_values) != set(self.property_names):
             raise ValueError("'property_values' must match 'property_names' exactly")
 
+        if not self.property_names:
+            return
+
         if self.property_target == "edge":
             expected_ids = {edge.edge_id for edge in self.graph.edges}
         elif self.property_target == "node":
             expected_ids = set(self.graph.nodes)
-        else:
+        else:  # property_target == "actuator"
             expected_ids = set(self.graph.actuators)
 
         for property_name in self.property_names:
