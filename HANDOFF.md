@@ -135,15 +135,19 @@ target type.
 `ModelOutput` contains:
 
 - `model_name`: the stage identifier.
-- `property_target`: `edge`, `node`, or `actuator`.
-- `property_names`: every generated property name in configured order.
-- `property_values`: one complete entity-ID-to-number mapping per property.
+- `property_target`: `edge`, `node`, or `actuator`; state-only stages use `null`.
+- `property_names`: generated property names in configured order, or an empty tuple.
+- `property_values`: one complete entity-ID-to-value mapping per generated property,
+  or an empty mapping for a state-only stage.
 - `graph`: the updated graph containing every generated property.
 - `diagnostics`: optional debugging or monitoring details.
 
-The contract validates unique non-empty property names, exact agreement between
-`property_names` and `property_values`, complete target coverage, numeric edge/node values, and actuator values that are
-finite numbers, non-empty strings, or `null`.
+The contract does not require a model to generate a property. When properties
+are present, it validates unique non-empty names, a non-null target, exact
+agreement between `property_names` and `property_values`, complete target
+coverage, numeric edge/node values, and actuator values that are finite numbers,
+non-empty strings, or `null`. A state-only model returns an updated graph with
+`property_target=None`, `property_names=()`, and `property_values={}`.
 
 `ModelOutput.to_model_input()` passes the updated graph to the next model.
 Properties exist in memory until the process ends. `save_json()` writes the full
@@ -204,7 +208,7 @@ Required template configuration fields:
 | `description` | Plain-language model description |
 | `enabled` | Enables or disables the stage |
 | `property_target` | `edge`, `node`, or `actuator` |
-| `output_properties` | Non-empty list of property names produced by the model |
+| `output_properties` | Property names produced by the model, or an empty list for a state-only model |
 | `input_properties` | Earlier properties to consume, or an empty list |
 | `parameters` | Model-specific numeric parameters |
 

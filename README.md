@@ -37,8 +37,8 @@ introduced by the code.
 
 Start with [`models/_template`](models/_template/README.md). Each model keeps
 human-tunable values in a small `config.json`, declares zero or more input
-properties and one or more output properties, and exposes the shared Python
-input/output interface.
+and output properties, and exposes the shared Python input/output interface.
+Models that only update existing graph state may report no output properties.
 
 Run the template example and checks from the project root:
 
