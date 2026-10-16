@@ -82,7 +82,7 @@ static infrastructure data.
 
 Required type-specific parameters:
 
-- `misting_point`: `max_heat_reduction_c`
+- `misting_point`: `max_heat_reduction_f`
 - `traffic_signal`: `default_wait_time_s`, `min_wait_time_s`, and
   `max_wait_time_s`
 - `directional_led`: no static parameters at present
