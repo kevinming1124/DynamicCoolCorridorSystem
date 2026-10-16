@@ -1,0 +1,80 @@
+{
+  "campus_environment": {
+    "property_target": "node",
+    "property_names": [
+      "air_temperature_f"
+    ],
+    "property_values": {
+      "air_temperature_f": {
+        "N01": 90.3,
+        "N02": 93.4,
+        "N03": 95.4,
+        "N04": 89.2,
+        "N05": 94.6,
+        "N06": 92.3,
+        "N07": 97.0,
+        "N08": 99.5,
+        "N09": 98.1
+      }
+    }
+  },
+  "heat_exposure": {
+    "property_target": "edge",
+    "property_names": [
+      "heat_exposure"
+    ],
+    "property_values": {
+      "heat_exposure": {
+        "E01": 0.45,
+        "E02": 0.68,
+        "E03": 0.42,
+        "E04": 0.73,
+        "E05": 0.51,
+        "E06": 0.64,
+        "E07": 0.85,
+        "E08": 0.76,
+        "E09": 0.88,
+        "E10": 0.81,
+        "E11": 0.57,
+        "E12": 0.92
+      }
+    }
+  },
+  "heat_prediction": {
+    "property_target": "edge",
+    "property_names": [
+      "predicted_heat_exposure",
+      "predicted_crowd_density"
+    ],
+    "property_values": {
+      "predicted_heat_exposure": {
+        "E01": 0.52,
+        "E02": 0.72,
+        "E03": 0.38,
+        "E04": 0.79,
+        "E05": 0.55,
+        "E06": 0.69,
+        "E07": 0.89,
+        "E08": 0.82,
+        "E09": 0.91,
+        "E10": 0.86,
+        "E11": 0.61,
+        "E12": 0.95
+      },
+      "predicted_crowd_density": {
+        "E01": 0.58,
+        "E02": 0.74,
+        "E03": 0.46,
+        "E04": 0.63,
+        "E05": 0.49,
+        "E06": 0.35,
+        "E07": 0.68,
+        "E08": 0.83,
+        "E09": 0.77,
+        "E10": 0.88,
+        "E11": 0.41,
+        "E12": 0.72
+      }
+    }
+  }
+}
