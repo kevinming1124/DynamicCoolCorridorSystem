@@ -1,1 +1,2 @@
-# No third-party runtime dependencies are required yet.
+# MoonLight provides the STREL parser and monitoring engine.
+moonlight==0.3.1

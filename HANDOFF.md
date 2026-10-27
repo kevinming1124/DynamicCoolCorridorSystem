@@ -7,9 +7,11 @@ safe way to extend the project.
 ## Current state
 
 - Python version: 3.12
-- Third-party dependencies: none
+- Java version: 21 or newer, with `JAVA_HOME` configured
+- Third-party dependencies: MoonLight 0.3.1 and its transitive dependencies
 - Dependency management: `requirements.txt`
 - Active pipeline stages: one example model
+- Standalone experiments: one MoonLight-backed STREL proof of concept
 - Dataset: fictional campus block with 9 nodes and 12 edges
 - Coordinates: local `x_m` and `y_m` values in meters
 - Automated unit tests: intentionally removed
@@ -20,6 +22,7 @@ Run these smoke checks after making changes:
 python -m pip install -r requirements.txt
 python main.py
 python -m models._template.model
+python -m models.strel_poc.model
 python -m compileall -q main.py utils models
 ```
 
@@ -32,6 +35,7 @@ python -m compileall -q main.py utils models
 5. `utils/pipeline/contracts.py` — shared `ModelInput` and `ModelOutput`.
 6. `utils/graph/` — shared graph entities, graph state, and JSON loading.
 7. `dataset/tiny_campus_block/README.md` — dataset schema and assumptions.
+8. `models/strel_poc/README.md` — standalone MoonLight/STREL experiment.
 
 ## Project structure
 
@@ -47,10 +51,14 @@ DynamicCoolCorridorSystem/
 │   └── pipeline/
 │       └── contracts.py            # ModelInput and ModelOutput
 ├── models/
-│   └── _template/
-│       ├── model.py                # Copyable model implementation
-│       ├── config.json             # Human-editable settings
-│       └── README.md               # Model creation guide
+│   ├── _template/
+│   │   ├── model.py                # Copyable model implementation
+│   │   ├── config.json             # Human-editable settings
+│   │   └── README.md               # Model creation guide
+│   └── strel_poc/
+│       ├── model.py                # MoonLight graph/signal adapter experiment
+│       ├── formula.mls             # Boolean STREL reach formula
+│       └── README.md               # Proof-of-concept instructions
 ├── dataset/
 │   └── tiny_campus_block/
 │       ├── dataset.json             # Dataset manifest and metadata

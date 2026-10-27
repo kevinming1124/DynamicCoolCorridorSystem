@@ -6,6 +6,11 @@ New developers and GPT sessions should begin with [HANDOFF.md](HANDOFF.md).
 
 - 3.12
 
+## Java requirement
+
+The MoonLight STREL engine requires Java 21 or newer and a `JAVA_HOME`
+environment variable that points to the installed JDK.
+
 ## Environment setup
 
 Create and activate a virtual environment, then install the project
@@ -17,9 +22,8 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-The requirements file is currently empty because the project uses only the
-Python standard library. Add third-party runtime packages to it when they are
-introduced by the code.
+The project uses MoonLight 0.3.1 for STREL parsing and monitoring. The main
+pipeline does not use the STREL proof of concept yet.
 
 ## Project structure
 
@@ -29,6 +33,7 @@ introduced by the code.
         - pipeline/ (shared model input and output contracts)
     - models/
         - _template/ (copyable, human-editable model starter)
+        - strel_poc/ (standalone MoonLight integration proof of concept)
     - dataset/
         - tiny_campus_block/ (9-node fictional test graph)
     - main.py
@@ -63,6 +68,18 @@ python main.py --debug-dir debug
 Add future model stages in execution order inside `build_pipeline()` in
 `main.py`. Each stage automatically receives the graph produced by the previous
 stage, including every dynamic property accumulated so far.
+
+## STREL proof of concept
+
+Run the standalone MoonLight integration check from the project root:
+
+```powershell
+python -m models.strel_poc.model
+```
+
+It evaluates a Boolean STREL reach formula on the tiny campus graph and verifies
+the result. See [`models/strel_poc/README.md`](models/strel_poc/README.md) for
+the formula and current limitations.
 
 ## Testing dataset
 
