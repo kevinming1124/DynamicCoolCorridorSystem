@@ -6,6 +6,11 @@ New developers and GPT sessions should begin with [HANDOFF.md](HANDOFF.md).
 
 - 3.12
 
+## Java requirement
+
+The MoonLight STREL engine requires Java 21 or newer and a `JAVA_HOME`
+environment variable that points to the installed JDK.
+
 ## Environment setup
 
 Create and activate a virtual environment, then install the project
@@ -17,9 +22,8 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-The root requirements install pythermalcomfort for UTCI calculations. The
-exported USC map and routingc search add no runtime dependencies. OSMnx and
-plotting packages are optional, for rebuilding/running the standalone prototype.
+The root requirements install pythermalcomfort for UTCI calculations and MoonLight 0.3.1 for STREL
+OSMnx and plotting packages are optional, for rebuilding/running the standalone prototype.
 
 ## Project structure
 
@@ -29,6 +33,7 @@ plotting packages are optional, for rebuilding/running the standalone prototype.
         - pipeline/ (shared model input and output contracts)
     - models/
         - _template/ (copyable, human-editable model starter)
+        - strel_poc/ (standalone MoonLight integration proof of concept)
     - dataset/
         - tiny_campus_block/ (9-node fictional test graph)
     - main.py
@@ -83,6 +88,18 @@ and so on. The completion output lists final actuator states.
 and `run_simulation()` initializes and repeats the rounds. The final output is
 the pedestrian result, with environmental and heat properties retained on its graph. Each stage receives
 the graph produced by the previous stage, including accumulated properties.
+
+## STREL proof of concept
+
+Run the standalone MoonLight integration check from the project root:
+
+```powershell
+python -m models.strel_poc.model
+```
+
+It evaluates a Boolean STREL reach formula on the tiny campus graph and verifies
+the result. See [`models/strel_poc/README.md`](models/strel_poc/README.md) for
+the formula and current limitations.
 
 ## Testing dataset
 

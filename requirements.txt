@@ -1,1 +1,3 @@
 pythermalcomfort==4.8.1
+# MoonLight provides the STREL parser and monitoring engine.
+moonlight==0.3.1
