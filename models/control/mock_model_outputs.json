@@ -43,8 +43,7 @@
   "heat_prediction": {
     "property_target": "edge",
     "property_names": [
-      "predicted_heat_exposure",
-      "predicted_crowd_density"
+      "predicted_heat_exposure"
     ],
     "property_values": {
       "predicted_heat_exposure": {
@@ -60,20 +59,6 @@
         "E10": 0.86,
         "E11": 0.61,
         "E12": 0.95
-      },
-      "predicted_crowd_density": {
-        "E01": 0.58,
-        "E02": 0.74,
-        "E03": 0.46,
-        "E04": 0.63,
-        "E05": 0.49,
-        "E06": 0.35,
-        "E07": 0.68,
-        "E08": 0.83,
-        "E09": 0.77,
-        "E10": 0.88,
-        "E11": 0.41,
-        "E12": 0.72
       }
     }
   }

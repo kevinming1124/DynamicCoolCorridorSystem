@@ -24,10 +24,8 @@ DEFAULT_MOCK_OUTPUTS_PATH = Path(__file__).with_name("mock_model_outputs.json")
 AIR_TEMPERATURE_PROPERTY = "air_temperature_f"
 HEAT_EXPOSURE_PROPERTY = "heat_exposure"
 PREDICTED_HEAT_EXPOSURE_PROPERTY = "predicted_heat_exposure"
-PREDICTED_CROWD_DENSITY_PROPERTY = "predicted_crowd_density"
 MISTING_TEMPERATURE_THRESHOLD_F = 95.0
 HIGH_HEAT_EXPOSURE_THRESHOLD = 0.7
-HIGH_CROWD_DENSITY_THRESHOLD = 0.7
 
 
 def load_mock_model_outputs(
@@ -47,9 +45,6 @@ def load_mock_model_outputs(
         predicted_heat_exposures = raw["heat_prediction"]["property_values"][
             PREDICTED_HEAT_EXPOSURE_PROPERTY
         ]
-        predicted_crowd_densities = raw["heat_prediction"]["property_values"][
-            PREDICTED_CROWD_DENSITY_PROPERTY
-        ]
     except FileNotFoundError as exc:
         raise ValueError(f"Mock heat output file not found: {mock_path}") from exc
     except json.JSONDecodeError as exc:
@@ -61,11 +56,8 @@ def load_mock_model_outputs(
 
     graph = graph.with_node_property(AIR_TEMPERATURE_PROPERTY, air_temperatures)
     graph = graph.with_edge_property(HEAT_EXPOSURE_PROPERTY, heat_exposures)
-    graph = graph.with_edge_property(
-        PREDICTED_HEAT_EXPOSURE_PROPERTY, predicted_heat_exposures
-    )
     return graph.with_edge_property(
-        PREDICTED_CROWD_DENSITY_PROPERTY, predicted_crowd_densities
+        PREDICTED_HEAT_EXPOSURE_PROPERTY, predicted_heat_exposures
     )
 
 
@@ -192,7 +184,7 @@ class ControlModel:
     def control_traffic_signal(
         self, actuator: StaticActuator, graph: CampusGraph
     ) -> StaticActuator:
-        """Reduce wait time for current/predicted heat or crowd risk."""
+        """Reduce wait time for current or predicted heat risk."""
         heat_exposure = max(
             self._edge_property(graph, edge_id, HEAT_EXPOSURE_PROPERTY)
             for edge_id in actuator.controlled_edges
@@ -200,12 +192,6 @@ class ControlModel:
         predicted_heat_exposure = max(
             self._edge_property(
                 graph, edge_id, PREDICTED_HEAT_EXPOSURE_PROPERTY
-            )
-            for edge_id in actuator.controlled_edges
-        )
-        predicted_crowd_density = max(
-            self._edge_property(
-                graph, edge_id, PREDICTED_CROWD_DENSITY_PROPERTY
             )
             for edge_id in actuator.controlled_edges
         )
@@ -217,14 +203,12 @@ class ControlModel:
             actuator.min_wait_time_s
             if heat_exposure >= HIGH_HEAT_EXPOSURE_THRESHOLD
             or predicted_heat_exposure >= HIGH_HEAT_EXPOSURE_THRESHOLD
-            or predicted_crowd_density >= HIGH_CROWD_DENSITY_THRESHOLD
             else actuator.default_wait_time_s
         )
         print(
             f"Controlling traffic signal {actuator.actuator_id}: "
             f"current heat {heat_exposure:.2f}, predicted heat "
-            f"{predicted_heat_exposure:.2f}, predicted crowd "
-            f"{predicted_crowd_density:.2f} -> wait {wait_time_s:.0f} s"
+            f"{predicted_heat_exposure:.2f} -> wait {wait_time_s:.0f} s"
         )
         return actuator.with_property("status", "on").with_property(
             "wait_time_s", wait_time_s
@@ -236,26 +220,17 @@ class ControlModel:
         """Recommend the linked edge with the lowest predicted heat risk."""
         recommended_edge = min(
             actuator.recommended_edges,
-            key=lambda edge_id: (
-                self._edge_property(
-                    graph, edge_id, PREDICTED_HEAT_EXPOSURE_PROPERTY
-                ),
-                self._edge_property(
-                    graph, edge_id, PREDICTED_CROWD_DENSITY_PROPERTY
-                ),
+            key=lambda edge_id: self._edge_property(
+                graph, edge_id, PREDICTED_HEAT_EXPOSURE_PROPERTY
             ),
         )
         predicted_heat_exposure = self._edge_property(
             graph, recommended_edge, PREDICTED_HEAT_EXPOSURE_PROPERTY
         )
-        predicted_crowd_density = self._edge_property(
-            graph, recommended_edge, PREDICTED_CROWD_DENSITY_PROPERTY
-        )
         print(
             f"Controlling directional LED {actuator.actuator_id}: "
             f"recommend {recommended_edge} (predicted heat "
-            f"{predicted_heat_exposure:.2f}, predicted crowd "
-            f"{predicted_crowd_density:.2f})"
+            f"{predicted_heat_exposure:.2f})"
         )
         return actuator.with_property("status", "on").with_property(
             "recommended_edge", recommended_edge
