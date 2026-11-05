@@ -1,0 +1,29 @@
+{
+  "model_name": "environment_model",
+  "description": "Calculates air temperature, humidity, solar radiation, shade, and misting cooling on every edge for one time of day.",
+  "enabled": true,
+  "property_target": "edge",
+  "output_properties": [
+    "air_temp_f",
+    "humidity_pct",
+    "solar_radiation_wm2",
+    "shade_pct",
+    "mist_cooling_f"
+  ],
+  "input_properties": [],
+  "parameters": {
+    "temp_peak_hour": 15.0,
+    "sunrise_hour": 6.0,
+    "sunset_hour": 20.0,
+    "peak_solar_radiation_wm2": 900.0,
+    "mist_range_m": 75.0,
+    "mist_humidity_increase_pct": 5.0,
+    "default_shade_pct": 5.0
+  },
+  "metadata": {
+    "default_time": "12:00",
+    "default_scenario": "hot",
+    "scenarios_file": "scenarios.json",
+    "shade_schedule_file": "dataset/campus_50/shade_schedule.json"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "dataset_id": "campus_50",
+  "description": "50-node, 100-edge campus graph inspired by USC University Park (not to scale)",
+  "graph": {
+    "directed": false,
+    "coordinate_system": {
+      "type": "local_cartesian",
+      "unit": "meter",
+      "origin": "Southwest corner of the simulated campus"
+    }
+  },
+  "files": {
+    "nodes": "nodes.json",
+    "edges": "edges.json",
+    "actuators": "actuators.json",
+    "shade_schedule": "shade_schedule.json"
+  }
+}
