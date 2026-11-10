@@ -143,7 +143,7 @@ def _actuator(record: JsonObject) -> StaticActuator:
     actuator_id = _string(record, "actuator_id", "actuator")
     actuator_type = _string(record, "actuator_type", actuator_id)
     allowed_parameters = {
-        "misting_point": {"max_heat_reduction_c"},
+        "misting_point": {"max_heat_reduction_f"},
         "traffic_signal": {
             "default_wait_time_s",
             "min_wait_time_s",
@@ -172,12 +172,12 @@ def _actuator(record: JsonObject) -> StaticActuator:
         record, actuator_id
     )
     if actuator_type == "misting_point":
-        max_heat_reduction_c = _number(
-            parameters, "max_heat_reduction_c", actuator_id
+        max_heat_reduction_f = _number(
+            parameters, "max_heat_reduction_f", actuator_id
         )
-        if max_heat_reduction_c <= 0:
+        if max_heat_reduction_f <= 0:
             raise ValueError(
-                f"{actuator_id}: 'max_heat_reduction_c' must be greater than zero"
+                f"{actuator_id}: 'max_heat_reduction_f' must be greater than zero"
             )
         if controlled_edges or recommended_edges:
             raise ValueError(
@@ -185,7 +185,7 @@ def _actuator(record: JsonObject) -> StaticActuator:
             )
         default_wait_time_s = min_wait_time_s = max_wait_time_s = None
     elif actuator_type == "traffic_signal":
-        max_heat_reduction_c = None
+        max_heat_reduction_f = None
         default_wait_time_s = _number(
             parameters, "default_wait_time_s", actuator_id
         )
@@ -204,7 +204,7 @@ def _actuator(record: JsonObject) -> StaticActuator:
                 f"{actuator_id}: traffic signals require only 'controls' relationships"
             )
     else:
-        max_heat_reduction_c = None
+        max_heat_reduction_f = None
         default_wait_time_s = min_wait_time_s = max_wait_time_s = None
         if not recommended_edges or controlled_edges:
             raise ValueError(
@@ -219,7 +219,7 @@ def _actuator(record: JsonObject) -> StaticActuator:
         y_m=_number(position, "y_m", actuator_id),
         controlled_edges=controlled_edges,
         recommended_edges=recommended_edges,
-        max_heat_reduction_c=max_heat_reduction_c,
+        max_heat_reduction_f=max_heat_reduction_f,
         default_wait_time_s=default_wait_time_s,
         min_wait_time_s=min_wait_time_s,
         max_wait_time_s=max_wait_time_s,

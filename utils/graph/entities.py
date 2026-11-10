@@ -124,7 +124,7 @@ class StaticActuator:
     y_m: float
     controlled_edges: tuple[str, ...] = ()
     recommended_edges: tuple[str, ...] = ()
-    max_heat_reduction_c: float | None = None
+    max_heat_reduction_f: float | None = None
     default_wait_time_s: float | None = None
     min_wait_time_s: float | None = None
     max_wait_time_s: float | None = None
@@ -197,7 +197,7 @@ class StaticActuator:
             "y_m": self.y_m,
             "controlled_edges": list(self.controlled_edges),
             "recommended_edges": list(self.recommended_edges),
-            "max_heat_reduction_c": self.max_heat_reduction_c,
+            "max_heat_reduction_f": self.max_heat_reduction_f,
             "default_wait_time_s": self.default_wait_time_s,
             "min_wait_time_s": self.min_wait_time_s,
             "max_wait_time_s": self.max_wait_time_s,

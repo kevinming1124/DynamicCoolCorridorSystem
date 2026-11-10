@@ -9,7 +9,7 @@
         "y_m": 20
       },
       "parameters": {
-        "max_heat_reduction_c": 3
+        "max_heat_reduction_f": 5.4
       },
       "edge_relationships": [],
       "description": "Central Green misting point for localized heat reduction"
