@@ -22,8 +22,9 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-The project uses MoonLight 0.3.1 for STREL parsing and monitoring. The main
-pipeline does not use the STREL proof of concept yet.
+The project uses MoonLight 0.3.1 for STREL parsing and monitoring. The final
+requirements verifier is implemented but is not registered until its upstream
+models provide the formal inputs.
 
 ## Project structure
 
@@ -34,6 +35,7 @@ pipeline does not use the STREL proof of concept yet.
     - models/
         - _template/ (copyable, human-editable model starter)
         - strel_poc/ (standalone MoonLight integration proof of concept)
+        - verification/ (final hybrid STREL and Python requirements verifier)
     - dataset/
         - tiny_campus_block/ (9-node fictional test graph)
     - main.py
@@ -80,6 +82,19 @@ python -m models.strel_poc.model
 It evaluates a Boolean STREL reach formula on the tiny campus graph and verifies
 the result. See [`models/strel_poc/README.md`](models/strel_poc/README.md) for
 the formula and current limitations.
+
+## Requirements verification demonstration
+
+Run the final verifier with explicit mock upstream values:
+
+```powershell
+python -m models.verification.model
+```
+
+It verifies a normal route, constrained fallback, saturation, and invalid
+actuator-locality scenarios. See
+[`models/verification/README.md`](models/verification/README.md) for the formal
+input contract and future pipeline placement.
 
 ## Testing dataset
 

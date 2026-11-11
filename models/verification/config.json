@@ -1,0 +1,53 @@
+{
+  "model_name": "requirements_verification",
+  "description": "Verifies route, fallback, arrival, and attributed actuator-response requirements.",
+  "enabled": true,
+  "property_target": "edge",
+  "output_properties": [
+    "verification_selected_edge_safe",
+    "verification_route_safe_normal",
+    "verification_route_safe_applied",
+    "verification_route_usable",
+    "verification_bounded_arrival_valid",
+    "verification_fallback_valid",
+    "verification_actuator_response_valid",
+    "verification_overall_valid"
+  ],
+  "input_properties": [
+    "route_order",
+    "expected_entry_time_s",
+    "predicted_exposure_at_entry",
+    "predicted_travel_time_s",
+    "fallback_selected",
+    "required_threshold_relaxation",
+    "baseline_temperature_f",
+    "misting_temperature_effect_f",
+    "controlled_temperature_f",
+    "baseline_predicted_exposure_at_entry",
+    "misting_exposure_effect_at_entry",
+    "baseline_travel_time_s",
+    "signal_travel_time_effect_s",
+    "pedestrian_demand"
+  ],
+  "parameters": {
+    "unsafe_exposure_threshold": 0.7,
+    "maximum_arrival_ratio": 2.5,
+    "misting_influence_radius_m": 25.0,
+    "maximum_exposure_reduction_per_f": 0.025,
+    "minimum_controlled_temperature_f": 70.0,
+    "comparison_tolerance": 0.000001
+  },
+  "metadata": {
+    "required_node_properties": [
+      "route_origin",
+      "route_destination"
+    ],
+    "formula_file": "formula.mls",
+    "formula_name": "safe_to_destination",
+    "supported_saturation_reasons": [
+      "none",
+      "physical_floor",
+      "no_demand"
+    ]
+  }
+}
