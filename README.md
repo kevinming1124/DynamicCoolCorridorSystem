@@ -34,6 +34,7 @@ OSMnx and plotting packages are optional, for rebuilding/running the standalone 
     - models/
         - _template/ (copyable, human-editable model starter)
         - strel_poc/ (standalone MoonLight integration proof of concept)
+        - verification/ (final hybrid STREL and Python requirements verifier)
     - dataset/
         - tiny_campus_block/ (9-node fictional test graph)
     - main.py
@@ -100,6 +101,19 @@ python -m models.strel_poc.model
 It evaluates a Boolean STREL reach formula on the tiny campus graph and verifies
 the result. See [`models/strel_poc/README.md`](models/strel_poc/README.md) for
 the formula and current limitations.
+
+## Requirements verification demonstration
+
+Run the final verifier with explicit mock upstream values:
+
+```powershell
+python -m models.verification.model
+```
+
+It verifies a normal route, constrained fallback, saturation, and invalid
+actuator-locality scenarios. See
+[`models/verification/README.md`](models/verification/README.md) for the formal
+input contract and future pipeline placement.
 
 ## Testing dataset
 
