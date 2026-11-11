@@ -33,7 +33,6 @@ OSMnx and plotting packages are optional, for rebuilding/running the standalone 
         - pipeline/ (shared model input and output contracts)
     - models/
         - _template/ (copyable, human-editable model starter)
-        - strel_poc/ (standalone MoonLight integration proof of concept)
         - verification/ (final hybrid STREL and Python requirements verifier)
     - dataset/
         - tiny_campus_block/ (9-node fictional test graph)
@@ -89,18 +88,6 @@ and so on. The completion output lists final actuator states.
 and `run_simulation()` initializes and repeats the rounds. The final output is
 the pedestrian result, with environmental and heat properties retained on its graph. Each stage receives
 the graph produced by the previous stage, including accumulated properties.
-
-## STREL proof of concept
-
-Run the standalone MoonLight integration check from the project root:
-
-```powershell
-python -m models.strel_poc.model
-```
-
-It evaluates a Boolean STREL reach formula on the tiny campus graph and verifies
-the result. See [`models/strel_poc/README.md`](models/strel_poc/README.md) for
-the formula and current limitations.
 
 ## Requirements verification demonstration
 

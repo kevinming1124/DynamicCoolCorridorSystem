@@ -26,7 +26,6 @@ Run these smoke checks after making changes:
 python -m pip install -r requirements.txt
 python main.py
 python -m models._template.model
-python -m models.strel_poc.model
 python -m models.verification.model
 python -m compileall -q main.py utils models
 ```
@@ -40,8 +39,7 @@ python -m compileall -q main.py utils models
 5. `utils/pipeline/contracts.py` — shared `ModelInput` and `ModelOutput`.
 6. `utils/graph/` — shared graph entities, graph state, and JSON loading.
 7. `dataset/tiny_campus_block/README.md` — dataset schema and assumptions.
-8. `models/strel_poc/README.md` — standalone MoonLight/STREL experiment.
-9. `models/verification/README.md` — final verification input contract.
+8. `models/verification/README.md` — final verification input contract.
 
 ## Project structure
 
@@ -61,10 +59,6 @@ DynamicCoolCorridorSystem/
 │   │   ├── model.py                # Copyable model implementation
 │   │   ├── config.json             # Human-editable settings
 │   │   └── README.md               # Model creation guide
-│   ├── strel_poc/
-│   │   ├── model.py                # MoonLight graph/signal adapter experiment
-│   │   ├── formula.mls             # Boolean STREL reach formula
-│   │   └── README.md               # Proof-of-concept instructions
 │   └── verification/
 │       ├── model.py                # Project model and result assembly
 │       ├── checks.py               # Python requirement checks
