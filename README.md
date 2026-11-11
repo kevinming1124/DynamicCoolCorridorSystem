@@ -34,7 +34,6 @@ models provide the formal inputs.
         - pipeline/ (shared model input and output contracts)
     - models/
         - _template/ (copyable, human-editable model starter)
-        - strel_poc/ (standalone MoonLight integration proof of concept)
         - verification/ (final hybrid STREL and Python requirements verifier)
     - dataset/
         - tiny_campus_block/ (9-node fictional test graph)
@@ -70,18 +69,6 @@ python main.py --debug-dir debug
 Add future model stages in execution order inside `build_pipeline()` in
 `main.py`. Each stage automatically receives the graph produced by the previous
 stage, including every dynamic property accumulated so far.
-
-## STREL proof of concept
-
-Run the standalone MoonLight integration check from the project root:
-
-```powershell
-python -m models.strel_poc.model
-```
-
-It evaluates a Boolean STREL reach formula on the tiny campus graph and verifies
-the result. See [`models/strel_poc/README.md`](models/strel_poc/README.md) for
-the formula and current limitations.
 
 ## Requirements verification demonstration
 
