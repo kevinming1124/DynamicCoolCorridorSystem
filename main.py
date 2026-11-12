@@ -7,12 +7,13 @@ import re
 from pathlib import Path
 from typing import Protocol, Sequence
 
-from models._template import ModelTemplate
+from models.environment import EnvironmentModel
+from models.heat_exposure import HeatExposureModel
 from utils import CampusGraph, ModelInput, ModelOutput, load_campus_graph
 
 
 PROJECT_ROOT = Path(__file__).parent
-DEFAULT_DATASET = PROJECT_ROOT / "dataset" / "tiny_campus_block"
+DEFAULT_DATASET = PROJECT_ROOT / "dataset" / "campus_50"
 
 
 class PipelineStage(Protocol):
@@ -28,19 +29,24 @@ def build_pipeline() -> list[PipelineStage]:
     Import and append future models here. Each stage receives the graph returned
     by the preceding stage.
     """
-    return [ModelTemplate.from_config()]
+    return [
+        EnvironmentModel.from_config(),
+        HeatExposureModel.from_config(),
+    ]
 
 
 def run_pipeline(
     graph: CampusGraph,
     stages: Sequence[PipelineStage],
     debug_directory: str | Path | None = None,
+    context: dict[str, str] | None = None,
 ) -> ModelOutput:
     """Run every stage and return the final output."""
     if not stages:
         raise ValueError("The pipeline must contain at least one model stage")
 
-    model_input = ModelInput(graph=graph)
+    runtime_context = context or {}
+    model_input = ModelInput(graph=graph, context=runtime_context)
     final_output: ModelOutput | None = None
 
     for stage_number, stage in enumerate(stages, start=1):
@@ -49,7 +55,7 @@ def run_pipeline(
             safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", final_output.model_name)
             debug_path = Path(debug_directory) / f"{stage_number:02d}_{safe_name}.json"
             final_output.save_json(debug_path)
-        model_input = final_output.to_model_input()
+        model_input = final_output.to_model_input(context=runtime_context)
 
     assert final_output is not None
     return final_output
@@ -68,6 +74,16 @@ def parse_arguments() -> argparse.Namespace:
         type=Path,
         help="Save the complete output from every stage as JSON",
     )
+    parser.add_argument(
+        "--time",
+        default="12:00",
+        help='Simulation time in HH:MM format (default: "12:00")',
+    )
+    parser.add_argument(
+        "--scenario",
+        default="hot",
+        help="Environment scenario (default: hot)",
+    )
     return parser.parse_args()
 
 
@@ -78,6 +94,7 @@ def main() -> None:
         graph=graph,
         stages=build_pipeline(),
         debug_directory=arguments.debug_dir,
+        context={"time": arguments.time, "scenario": arguments.scenario},
     )
 
     print(f"Pipeline completed: {final_output.model_name}")
