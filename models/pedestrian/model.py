@@ -9,14 +9,14 @@ movement calculations, demand generation, or crowd-density modeling.
 
 Pedestrian movement is delegated to movement.py.
 
-The simulator maintains its own state and does not modify the
-shared CampusGraph.
+The simulator retains its agents between calls. Pipeline calls return a new
+CampusGraph containing pedestrian counts without mutating the input graph.
 """
 
 import math
 from dataclasses import replace
 
-from utils.graph.graph import CampusGraph
+from utils import CampusGraph, ModelInput, ModelOutput
 
 from .agent import Pedestrian, PedestrianState
 from .movement import get_edge_distance, move_pedestrian
@@ -149,6 +149,53 @@ class PedestrianSimulator:
         # Commit only after every movement succeeds.
         self.pedestrians = updated_pedestrians
         self.simulation_time_sec = new_time
+
+    def predict(self, model_input: ModelInput) -> ModelOutput:
+        """Advance one step on the latest graph and report edge occupancy.
+
+        ``context["pedestrian_dt_sec"]`` overrides the one-second default.
+        Counts describe the end of the step, include waiting pedestrians on
+        their assigned edge, and exclude arrived pedestrians. All state is
+        committed only after movement and output validation succeed.
+        """
+        candidate = PedestrianSimulator(model_input.graph)
+        candidate.simulation_time_sec = self.simulation_time_sec
+        for pedestrian in self.pedestrians.values():
+            candidate.add_pedestrian(pedestrian)
+        candidate.step(model_input.context.get("pedestrian_dt_sec", 1.0))
+
+        counts = {edge.edge_id: 0 for edge in candidate.graph.edges}
+        edges_by_nodes = {}
+        for edge in candidate.graph.edges:
+            pair = frozenset((edge.from_node, edge.to_node))
+            edges_by_nodes.setdefault(pair, []).append(edge.edge_id)
+
+        for pedestrian in candidate.pedestrians.values():
+            if pedestrian.state == PedestrianState.ARRIVED:
+                continue
+            index = pedestrian.current_edge_index
+            pair = frozenset(pedestrian.route[index:index + 2])
+            edge_ids = edges_by_nodes.get(pair, [])
+            if len(edge_ids) != 1:
+                raise ValueError(
+                    "Pedestrian occupancy requires exactly one edge per "
+                    f"active route segment: {pedestrian.route[index:index + 2]}"
+                )
+            counts[edge_ids[0]] += 1
+
+        graph = candidate.graph.with_edge_property("pedestrian_count", counts)
+        output = ModelOutput(
+            model_name="pedestrian_simulation",
+            property_target="edge",
+            property_names=("pedestrian_count",),
+            property_values={"pedestrian_count": counts},
+            graph=graph,
+            diagnostics={"pedestrian_state": candidate.get_state()},
+        )
+        self.graph = graph
+        self.pedestrians = candidate.pedestrians
+        self.simulation_time_sec = candidate.simulation_time_sec
+        return output
 
     def get_pedestrian(self, pedestrian_id: int) -> Pedestrian:
         """
