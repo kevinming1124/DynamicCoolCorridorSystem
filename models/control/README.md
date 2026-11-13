@@ -6,7 +6,7 @@ updated actuator properties. It is intentionally not registered in `main.py`.
 ## Inputs and observation area
 
 - Heat Exposure supplies **edge** `unsafe_heat`, a numeric flag of 0.0 or 1.0.
-- Heat Prediction supplies edge `predicted_heat_exposure`.
+- Heat Exposure supplies edge `walking_heat_exposure` in degree-minutes.
 
 Each mister inspects only edges connected to its `anchor_node`. It turns on
 when any connected edge has `unsafe_heat == 1.0`, and off when all connected
@@ -21,11 +21,12 @@ an error.
 Observation coverage is separate from cooling coverage: the controller does not
 use the environment model's misting radius to select observed edges.
 
-Traffic signals read `unsafe_heat` and `predicted_heat_exposure` on
-`controlled_edges`. They use the minimum wait time when any controlled edge is
-unsafe or the maximum predicted exposure is at least 0.7; otherwise they use the
-default wait time. The 0.7 threshold applies only to predicted exposure.
-Directional LEDs select the lowest predicted exposure among `recommended_edges`.
+Traffic signals read `unsafe_heat` on `controlled_edges`. They use the minimum
+wait time when any controlled edge has `unsafe_heat == 1.0`; otherwise they use
+the default wait time. Signals always stay on.
+Directional LEDs select the lowest `walking_heat_exposure` among
+`recommended_edges` and always stay on. If exposures tie, the first edge in
+`recommended_edges` is selected.
 
 ## Outputs
 
@@ -34,19 +35,16 @@ already reads. Signals write `status` and `wait_time_s`; LEDs write `status` and
 `recommended_edge`. Existing node and edge properties are preserved.
 
 Pass the returned graph into environment to apply the commands. All stages must
-use the same loaded dataset. Control still needs heat and prediction outputs;
-environment output alone cannot run the full controller.
+use the same loaded dataset. Control needs the heat exposure outputs;
+environment output alone cannot run the full controller. No prediction inputs
+are required.
 
 ## Standalone demonstration
 
 Run `python -m models.control.model` from the repository root. The demonstration
 loads `campus_50`, runs `EnvironmentModel` with its default time and scenario,
-then runs `HeatExposureModel` on the returned graph. It adds only synthetic
-`predicted_heat_exposure` from `mock_model_outputs.json` before running control.
-All real environment and heat exposure properties, including `unsafe_heat`, are
-preserved by the mock loader.
+then runs `HeatExposureModel` on the returned graph before running control.
+All decisions use real heat exposure outputs without mock prediction values.
 
-The mock prediction values are independent of the environment conditions and
-are only demonstration inputs. Integration should supply real prediction
-outputs instead. This example runs one control decision; it does not advance
+This example runs one control decision; it does not advance
 time or recalculate cooling after applying commands.

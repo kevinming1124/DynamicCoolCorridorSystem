@@ -19,36 +19,9 @@ from utils import (
 PROJECT_ROOT = Path(__file__).parents[2]
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.json")
 DEFAULT_DATASET_PATH = PROJECT_ROOT / "dataset" / "campus_50"
-DEFAULT_MOCK_OUTPUTS_PATH = Path(__file__).with_name("mock_model_outputs.json")
 
 UNSAFE_HEAT_PROPERTY = "unsafe_heat"
-PREDICTED_HEAT_EXPOSURE_PROPERTY = "predicted_heat_exposure"
-PREDICTED_HEAT_EXPOSURE_THRESHOLD = 0.7
-
-
-def load_mock_model_outputs(
-    graph: CampusGraph,
-    path: str | Path = DEFAULT_MOCK_OUTPUTS_PATH,
-) -> CampusGraph:
-    """Add mock predictions, preserving real environment and heat properties."""
-    mock_path = Path(path)
-    try:
-        raw = json.loads(mock_path.read_text(encoding="utf-8"))
-        predicted_heat_exposures = raw["heat_prediction"]["property_values"][
-            PREDICTED_HEAT_EXPOSURE_PROPERTY
-        ]
-    except FileNotFoundError as exc:
-        raise ValueError(f"Mock prediction output file not found: {mock_path}") from exc
-    except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"Invalid JSON in {mock_path} at line {exc.lineno}, column {exc.colno}"
-        ) from exc
-    except (KeyError, TypeError) as exc:
-        raise ValueError(f"Invalid mock prediction output structure in {mock_path}") from exc
-
-    return graph.with_edge_property(
-        PREDICTED_HEAT_EXPOSURE_PROPERTY, predicted_heat_exposures
-    )
+WALKING_HEAT_EXPOSURE_PROPERTY = "walking_heat_exposure"
 
 
 @dataclass(frozen=True)
@@ -166,15 +139,9 @@ class ControlModel:
     def control_traffic_signal(
         self, actuator: StaticActuator, graph: CampusGraph
     ) -> StaticActuator:
-        """Reduce wait time for current or predicted heat risk."""
+        """Reduce wait time when any controlled edge has unsafe heat."""
         unsafe_heat = max(
             self._edge_property(graph, edge_id, UNSAFE_HEAT_PROPERTY)
-            for edge_id in actuator.controlled_edges
-        )
-        predicted_heat_exposure = max(
-            self._edge_property(
-                graph, edge_id, PREDICTED_HEAT_EXPOSURE_PROPERTY
-            )
             for edge_id in actuator.controlled_edges
         )
         if actuator.min_wait_time_s is None or actuator.default_wait_time_s is None:
@@ -184,13 +151,11 @@ class ControlModel:
         wait_time_s = (
             actuator.min_wait_time_s
             if unsafe_heat == 1.0
-            or predicted_heat_exposure >= PREDICTED_HEAT_EXPOSURE_THRESHOLD
             else actuator.default_wait_time_s
         )
         print(
             f"Controlling traffic signal {actuator.actuator_id}: "
-            f"unsafe heat {unsafe_heat:.0f}, predicted heat "
-            f"{predicted_heat_exposure:.2f} -> wait {wait_time_s:.0f} s"
+            f"unsafe heat {unsafe_heat:.0f} -> wait {wait_time_s:.0f} s"
         )
         return actuator.with_property("status", "on").with_property(
             "wait_time_s", wait_time_s
@@ -199,20 +164,20 @@ class ControlModel:
     def control_directional_led(
         self, actuator: StaticActuator, graph: CampusGraph
     ) -> StaticActuator:
-        """Recommend the linked edge with the lowest predicted heat risk."""
+        """Recommend the linked edge with the lowest walking heat exposure."""
         recommended_edge = min(
             actuator.recommended_edges,
             key=lambda edge_id: self._edge_property(
-                graph, edge_id, PREDICTED_HEAT_EXPOSURE_PROPERTY
+                graph, edge_id, WALKING_HEAT_EXPOSURE_PROPERTY
             ),
         )
-        predicted_heat_exposure = self._edge_property(
-            graph, recommended_edge, PREDICTED_HEAT_EXPOSURE_PROPERTY
+        walking_heat_exposure = self._edge_property(
+            graph, recommended_edge, WALKING_HEAT_EXPOSURE_PROPERTY
         )
         print(
             f"Controlling directional LED {actuator.actuator_id}: "
-            f"recommend {recommended_edge} (predicted heat "
-            f"{predicted_heat_exposure:.2f})"
+            f"recommend {recommended_edge} (walking heat exposure "
+            f"{walking_heat_exposure:.2f} degree-minutes)"
         )
         return actuator.with_property("status", "on").with_property(
             "recommended_edge", recommended_edge
@@ -270,7 +235,6 @@ if __name__ == "__main__":
     heat_output = HeatExposureModel.from_config().predict(
         environment_output.to_model_input()
     )
-    graph = load_mock_model_outputs(heat_output.graph)
-    output = model.control(ModelInput(graph=graph))
+    output = model.control(heat_output.to_model_input())
     for actuator in output.graph.actuators.values():
         print(f"{actuator.actuator_id}: {dict(actuator.properties)}")
