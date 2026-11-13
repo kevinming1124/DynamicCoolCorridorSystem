@@ -18,10 +18,10 @@ from utils import (
 
 PROJECT_ROOT = Path(__file__).parents[2]
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.json")
-DEFAULT_DATASET_PATH = PROJECT_ROOT / "dataset" / "tiny_campus_block"
+DEFAULT_DATASET_PATH = PROJECT_ROOT / "dataset" / "campus_50"
 DEFAULT_MOCK_OUTPUTS_PATH = Path(__file__).with_name("mock_model_outputs.json")
 
-AIR_TEMPERATURE_PROPERTY = "air_temperature_f"
+AIR_TEMPERATURE_PROPERTY = "air_temp_f"
 HEAT_EXPOSURE_PROPERTY = "heat_exposure"
 PREDICTED_HEAT_EXPOSURE_PROPERTY = "predicted_heat_exposure"
 MISTING_TEMPERATURE_THRESHOLD_F = 95.0
@@ -32,13 +32,10 @@ def load_mock_model_outputs(
     graph: CampusGraph,
     path: str | Path = DEFAULT_MOCK_OUTPUTS_PATH,
 ) -> CampusGraph:
-    """Add fake environment, Heat Exposure, and Heat Prediction outputs."""
+    """Add mock heat and prediction values, preserving environment properties."""
     mock_path = Path(path)
     try:
         raw = json.loads(mock_path.read_text(encoding="utf-8"))
-        air_temperatures = raw["campus_environment"]["property_values"][
-            AIR_TEMPERATURE_PROPERTY
-        ]
         heat_exposures = raw["heat_exposure"]["property_values"][
             HEAT_EXPOSURE_PROPERTY
         ]
@@ -54,7 +51,6 @@ def load_mock_model_outputs(
     except (KeyError, TypeError) as exc:
         raise ValueError(f"Invalid mock heat output structure in {mock_path}") from exc
 
-    graph = graph.with_node_property(AIR_TEMPERATURE_PROPERTY, air_temperatures)
     graph = graph.with_edge_property(HEAT_EXPOSURE_PROPERTY, heat_exposures)
     return graph.with_edge_property(
         PREDICTED_HEAT_EXPOSURE_PROPERTY, predicted_heat_exposures
@@ -150,17 +146,22 @@ class ControlModel:
     def control_misting_point(
         self, actuator: StaticActuator, graph: CampusGraph
     ) -> StaticActuator:
-        """Control misting from local temperature and current route exposure."""
-        anchor_node = graph.nodes[actuator.anchor_node]
-        air_temperature = self._numeric_property(
-            anchor_node.properties,
-            AIR_TEMPERATURE_PROPERTY,
-            anchor_node.node_id,
-        )
-        incident_edges = (
+        """Use maximum edge-average temperature and exposure at the anchor node."""
+        incident_edges = tuple(
             edge
             for edge in graph.edges
             if actuator.anchor_node in {edge.from_node, edge.to_node}
+        )
+        if not incident_edges:
+            raise ValueError(
+                f"{actuator.actuator_id}: no edges connect to anchor node "
+                f"'{actuator.anchor_node}'"
+            )
+        air_temperature = max(
+            self._numeric_property(
+                edge.properties, AIR_TEMPERATURE_PROPERTY, edge.edge_id
+            )
+            for edge in incident_edges
         )
         heat_exposure = max(
             self._numeric_property(
@@ -265,9 +266,12 @@ class ControlModel:
 
 
 if __name__ == "__main__":
+    from models.environment import EnvironmentModel
+
     model = ControlModel.from_config()
     graph = load_campus_graph(DEFAULT_DATASET_PATH)
-    graph = load_mock_model_outputs(graph)
+    environment_output = EnvironmentModel.from_config().predict(ModelInput(graph=graph))
+    graph = load_mock_model_outputs(environment_output.graph)
     output = model.control(ModelInput(graph=graph))
     for actuator in output.graph.actuators.values():
         print(f"{actuator.actuator_id}: {dict(actuator.properties)}")
