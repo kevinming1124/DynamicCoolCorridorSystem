@@ -1,7 +1,11 @@
 # Control model
 
 The controller reads the current graph and returns a replacement graph with
-updated actuator properties. It is intentionally not registered in `main.py`.
+updated actuator properties. In `main.py`, initialization runs Environment ->
+Heat Exposure once, followed by `--rounds` repetitions of Control -> Environment
+-> Heat Exposure (default: one round). Each round carries its graph forward;
+time and scenario stay fixed. Final heat results reflect the last misting
+commands, while signal and LED settings use the heat inputs at that round's start.
 
 ## Inputs and observation area
 
