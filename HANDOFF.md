@@ -7,10 +7,12 @@ safe way to extend the project.
 ## Current state
 
 - Python version: 3.12
-- Third-party dependencies: none
+- Third-party dependencies: `pythermalcomfort` (see `requirements.txt`)
 - Dependency management: `requirements.txt`
-- Active pipeline stages: one example model
-- Dataset: fictional campus block with 9 nodes and 12 edges
+- Initialization: Environment -> Heat Exposure, once per simulation
+- Round stages: Control -> Environment -> Heat Exposure (`--rounds`, default 1)
+- Time and scenario stay fixed; each round receives the previous round's graph
+- Default dataset: `campus_50`; `tiny_campus_block` remains available
 - Coordinates: local `x_m` and `y_m` values in meters
 - Automated unit tests: intentionally removed
 
