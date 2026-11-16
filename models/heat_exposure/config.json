@@ -1,0 +1,27 @@
+{
+  "model_name": "heat_exposure_model",
+  "description": "Calculates mean radiant temperature, UTCI, and walking heat exposure on every edge.",
+  "enabled": true,
+  "property_target": "edge",
+  "output_properties": [
+    "tmrt_c",
+    "utci_c",
+    "heat_exposure_rate",
+    "walking_heat_exposure",
+    "unsafe_heat"
+  ],
+  "input_properties": [
+    "air_temp_f",
+    "humidity_pct",
+    "solar_radiation_wm2",
+    "shade_pct"
+  ],
+  "parameters": {
+    "reference_utci_c": 26.0,
+    "unsafe_utci_c": 38.0,
+    "assumed_wind_speed_10m_mps": 1.5,
+    "shortwave_absorptivity": 0.7,
+    "projected_area_factor": 0.25,
+    "body_emissivity": 0.95
+  }
+}

@@ -7,12 +7,17 @@ safe way to extend the project.
 ## Current state
 
 - Python version: 3.12
-- Third-party dependencies: none
+- Third-party dependencies: `pythermalcomfort` (see `requirements.txt`)
 - Dependency management: `requirements.txt`
-- Active pipeline stages: one example model
-- Dataset: fictional campus block with 9 nodes and 12 edges
+- Initialization: Environment -> Heat Exposure, once per simulation
+- Round stages: Control -> Environment -> Heat Exposure -> Pedestrian (`--rounds`, default 1)
+- One persistent pedestrian simulator; optional externally assigned routes via `--routes`
+- Pedestrian timestep: `--pedestrian-dt`, default one second per round
+- Environment time and scenario stay fixed; pedestrian elapsed seconds advance separately
+- Each round receives the previous round's graph; an advancing shared clock is deferred
+- Default dataset: `campus_50`; `tiny_campus_block` remains available
 - Coordinates: local `x_m` and `y_m` values in meters
-- Automated unit tests: intentionally removed
+- Legacy shared unit tests were removed; this branch retains its existing pedestrian tests
 
 Run these smoke checks after making changes:
 
@@ -153,12 +158,10 @@ non-empty strings, or `null`. A state-only model returns an updated graph with
 Properties exist in memory until the process ends. `save_json()` writes the full
 state for debugging, but the project does not currently reload a saved JSON state.
 
-`main.py` currently resets `ModelInput.context` between stages. To preserve
-context, change the handoff to:
-
-```python
-model_input = final_output.to_model_input(context=model_input.context)
-```
+`main.py` preserves supplied runtime context between stages. Diagnostics are
+not forwarded automatically. The final pedestrian output exposes individual
+snapshots as `diagnostics["pedestrian_state"]`; later consumers need an explicit
+context handoff. Complete edge counts travel automatically with the graph.
 
 ## Creating a model
 
@@ -269,8 +272,7 @@ all accumulated properties, every result from the current stage, and diagnostics
 ## Dependency management
 
 The project intentionally uses `requirements.txt` rather than `pyproject.toml`.
-It currently contains no packages because the implementation uses only the
-Python standard library.
+It currently pins `pythermalcomfort` for the UTCI heat calculation.
 
 When adding a third-party runtime dependency:
 
@@ -295,13 +297,15 @@ When adding a third-party runtime dependency:
 
 ## Known limitations and next decisions
 
-- Only the example distance-and-accessibility-cost model is registered.
+- Initialization and rounds register the real environment, heat, control, and pedestrian stages.
+- Route optimization is external; see `models/pedestrian/README.md` for route assignment and input format.
+- Signal waits, dynamic rerouting, forecast metadata, and verification integration are deferred.
 - There is no persisted pipeline state loader.
 - Pipeline ordering is maintained manually in `build_pipeline()`.
 - The pipeline validates reported outputs but does not preflight input-property dependencies before execution.
-- Runtime context is not preserved between stages by default.
+- Runtime context is preserved, but stage diagnostics require explicit handoff.
 - There is no packaging configuration or command-line installation entry point.
-- Validation currently relies on smoke runs rather than an automated test suite.
+- Use pipeline smoke runs and the existing pedestrian test suite for validation.
 
 ## Suggested GPT workflow
 
@@ -332,3 +336,19 @@ When asking GPT to create a model, also specify:
 - Required configuration parameters.
 - Where it belongs in pipeline order.
 
+
+## Pedestrian integration
+
+`PedestrianSimulator.assign_route` accepts externally calculated ordered node
+IDs. It creates agents or replaces routes before departure, validating them
+without partially changing state. The runner may load the same assignments
+from `--routes`; no route optimizer or demand generator is introduced.
+
+`run_simulation(..., pedestrians=simulator)` reuses the supplied instance across
+rounds; otherwise it creates an empty one. Do not reconstruct the simulator in
+the round loop. `build_pipeline(simulator)` registers it after Heat Exposure.
+The final `ModelOutput` reports complete edge `pedestrian_count` and contains
+individual snapshots in diagnostics, with all earlier graph properties retained.
+
+The existing environment clock remains fixed; do not interpret `--rounds` as
+30-minute time advancement. `--pedestrian-dt` controls movement seconds only.

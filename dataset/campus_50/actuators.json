@@ -1,0 +1,290 @@
+{
+  "actuators": [
+    {
+      "actuator_id": "A01",
+      "actuator_type": "misting_point",
+      "position": {
+        "anchor_node": "N36",
+        "x_m": 300.0,
+        "y_m": 150.0
+      },
+      "parameters": {
+        "max_heat_reduction_f": 5.4
+      },
+      "edge_relationships": [],
+      "description": "McCarthy Quad misting point for localized heat reduction"
+    },
+    {
+      "actuator_id": "A02",
+      "actuator_type": "misting_point",
+      "position": {
+        "anchor_node": "N16",
+        "x_m": 300.0,
+        "y_m": 50.0
+      },
+      "parameters": {
+        "max_heat_reduction_f": 5.4
+      },
+      "edge_relationships": [],
+      "description": "Alumni Park misting point for localized heat reduction"
+    },
+    {
+      "actuator_id": "A03",
+      "actuator_type": "misting_point",
+      "position": {
+        "anchor_node": "N27",
+        "x_m": 360.0,
+        "y_m": 100.0
+      },
+      "parameters": {
+        "max_heat_reduction_f": 5.4
+      },
+      "edge_relationships": [],
+      "description": "Ronald Tutor Campus Center misting point for localized heat reduction"
+    },
+    {
+      "actuator_id": "A04",
+      "actuator_type": "misting_point",
+      "position": {
+        "anchor_node": "N06",
+        "x_m": 300.0,
+        "y_m": 0.0
+      },
+      "parameters": {
+        "max_heat_reduction_f": 5.4
+      },
+      "edge_relationships": [],
+      "description": "Expo Park/USC Metro Station misting point for localized heat reduction"
+    },
+    {
+      "actuator_id": "A05",
+      "actuator_type": "traffic_signal",
+      "position": {
+        "anchor_node": "N14",
+        "x_m": 180.0,
+        "y_m": 50.0
+      },
+      "parameters": {
+        "default_wait_time_s": 30,
+        "min_wait_time_s": 10,
+        "max_wait_time_s": 90
+      },
+      "edge_relationships": [
+        {
+          "edge_id": "E012",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E013",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E049",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E059",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E087",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E088",
+          "relationship": "controls"
+        }
+      ],
+      "description": "Adjustable pedestrian signal at intersection N14"
+    },
+    {
+      "actuator_id": "A06",
+      "actuator_type": "traffic_signal",
+      "position": {
+        "anchor_node": "N17",
+        "x_m": 360.0,
+        "y_m": 50.0
+      },
+      "parameters": {
+        "default_wait_time_s": 30,
+        "min_wait_time_s": 10,
+        "max_wait_time_s": 90
+      },
+      "edge_relationships": [
+        {
+          "edge_id": "E015",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E016",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E052",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E062",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E092",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E093",
+          "relationship": "controls"
+        }
+      ],
+      "description": "Adjustable pedestrian signal at intersection N17"
+    },
+    {
+      "actuator_id": "A07",
+      "actuator_type": "traffic_signal",
+      "position": {
+        "anchor_node": "N05",
+        "x_m": 240.0,
+        "y_m": 0.0
+      },
+      "parameters": {
+        "default_wait_time_s": 30,
+        "min_wait_time_s": 10,
+        "max_wait_time_s": 90
+      },
+      "edge_relationships": [
+        {
+          "edge_id": "E004",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E005",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E050",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E088",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E089",
+          "relationship": "controls"
+        }
+      ],
+      "description": "Adjustable pedestrian signal at intersection N05"
+    },
+    {
+      "actuator_id": "A08",
+      "actuator_type": "traffic_signal",
+      "position": {
+        "anchor_node": "N13",
+        "x_m": 120.0,
+        "y_m": 50.0
+      },
+      "parameters": {
+        "default_wait_time_s": 30,
+        "min_wait_time_s": 10,
+        "max_wait_time_s": 90
+      },
+      "edge_relationships": [
+        {
+          "edge_id": "E011",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E012",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E048",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E058",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E086",
+          "relationship": "controls"
+        }
+      ],
+      "description": "Adjustable pedestrian signal at intersection N13"
+    },
+    {
+      "actuator_id": "A09",
+      "actuator_type": "traffic_signal",
+      "position": {
+        "anchor_node": "N19",
+        "x_m": 480.0,
+        "y_m": 50.0
+      },
+      "parameters": {
+        "default_wait_time_s": 30,
+        "min_wait_time_s": 10,
+        "max_wait_time_s": 90
+      },
+      "edge_relationships": [
+        {
+          "edge_id": "E017",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E018",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E054",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E064",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E090",
+          "relationship": "controls"
+        }
+      ],
+      "description": "Adjustable pedestrian signal at intersection N19"
+    },
+    {
+      "actuator_id": "A10",
+      "actuator_type": "traffic_signal",
+      "position": {
+        "anchor_node": "N22",
+        "x_m": 60.0,
+        "y_m": 100.0
+      },
+      "parameters": {
+        "default_wait_time_s": 30,
+        "min_wait_time_s": 10,
+        "max_wait_time_s": 90
+      },
+      "edge_relationships": [
+        {
+          "edge_id": "E019",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E020",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E057",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E067",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "E095",
+          "relationship": "controls"
+        }
+      ],
+      "description": "Adjustable pedestrian signal at intersection N22"
+    }
+  ]
+}

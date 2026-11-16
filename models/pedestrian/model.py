@@ -13,8 +13,11 @@ The simulator retains its agents between calls. Pipeline calls return a new
 CampusGraph containing pedestrian counts without mutating the input graph.
 """
 
+import json
 import math
+from collections.abc import Sequence
 from dataclasses import replace
+from pathlib import Path
 
 from utils import CampusGraph, ModelInput, ModelOutput
 
@@ -34,6 +37,103 @@ class PedestrianSimulator:
         self.graph = graph
         self.pedestrians: dict[int, Pedestrian] = {}
         self.simulation_time_sec = 0.0
+
+    def assign_route(
+        self,
+        pedestrian_id: int,
+        route: Sequence[str],
+        *,
+        walking_speed_mps: float | None = None,
+    ) -> None:
+        """Register an externally calculated route, or replace it before departure.
+
+        A new agent's origin and destination are the route endpoints. Existing
+        agents retain their endpoints, state, speed (unless supplied), and time
+        totals. Replacing a route after movement begins is not supported yet.
+        Invalid assignments leave all simulator state unchanged.
+        """
+        if isinstance(pedestrian_id, bool) or not isinstance(pedestrian_id, int):
+            raise ValueError("Pedestrian ID must be an integer")
+        if isinstance(route, (str, bytes)) or not isinstance(route, Sequence):
+            raise ValueError("Route must be an ordered sequence of node IDs")
+        nodes = list(route)
+        if len(nodes) < 2 or any(
+            not isinstance(node, str) or node not in self.graph.nodes
+            for node in nodes
+        ):
+            raise ValueError("Route must contain at least two existing node IDs")
+        if walking_speed_mps is not None and (
+            isinstance(walking_speed_mps, bool)
+            or not isinstance(walking_speed_mps, (int, float))
+        ):
+            raise ValueError("Walking speed must be numeric")
+
+        existing = self.pedestrians.get(pedestrian_id)
+        if existing is None:
+            candidate = Pedestrian(
+                pedestrian_id=pedestrian_id,
+                origin=nodes[0],
+                destination=nodes[-1],
+                route=nodes,
+                walking_speed_mps=(
+                    1.4 if walking_speed_mps is None else walking_speed_mps
+                ),
+            )
+        else:
+            if (
+                existing.state == PedestrianState.ARRIVED
+                or existing.current_edge_index != 0
+                or existing.position_m != 0.0
+                or existing.total_travel_time_sec != 0.0
+            ):
+                raise ValueError("Route replacement is only supported before departure")
+            if nodes[0] != existing.origin or nodes[-1] != existing.destination:
+                raise ValueError("Replacement route must preserve origin and destination")
+            candidate = replace(
+                existing,
+                route=nodes,
+                walking_speed_mps=(
+                    existing.walking_speed_mps
+                    if walking_speed_mps is None else walking_speed_mps
+                ),
+            )
+
+        # Reuse registration validation without replacing the current agent
+        # until the complete assignment has succeeded.
+        validator = PedestrianSimulator(self.graph)
+        validator.add_pedestrian(candidate)
+        self.pedestrians[pedestrian_id] = validator.get_pedestrian(pedestrian_id)
+
+    @classmethod
+    def from_routes_file(
+        cls, graph: CampusGraph, path: str | Path
+    ) -> "PedestrianSimulator":
+        """Load initial assignments; this file supplies routes, not an optimizer."""
+        route_path = Path(path)
+        try:
+            raw = json.loads(route_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Cannot read pedestrian routes from {route_path}: {exc}") from exc
+        if not isinstance(raw, dict) or not isinstance(raw.get("pedestrians"), list):
+            raise ValueError("Route file must contain a 'pedestrians' array")
+
+        simulator = cls(graph)
+        for assignment in raw["pedestrians"]:
+            if not isinstance(assignment, dict) or not {
+                "pedestrian_id", "route"
+            }.issubset(assignment):
+                raise ValueError("Each assignment requires 'pedestrian_id' and 'route'")
+            pedestrian_id = assignment["pedestrian_id"]
+            if isinstance(pedestrian_id, bool) or not isinstance(pedestrian_id, int):
+                raise ValueError("Pedestrian ID must be an integer")
+            if pedestrian_id in simulator.pedestrians:
+                raise ValueError(f"Duplicate pedestrian ID in route file: {pedestrian_id}")
+            simulator.assign_route(
+                pedestrian_id,
+                assignment["route"],
+                walking_speed_mps=assignment.get("walking_speed_mps"),
+            )
+        return simulator
 
     def add_pedestrian(self, pedestrian: Pedestrian) -> None:
         """

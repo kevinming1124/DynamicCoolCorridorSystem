@@ -60,9 +60,29 @@ Save the complete output of each stage for debugging:
 python main.py --debug-dir debug
 ```
 
-Add future model stages in execution order inside `build_pipeline()` in
-`main.py`. Each stage automatically receives the graph produced by the previous
-stage, including every dynamic property accumulated so far.
+The dataset is loaded once. Initialization runs Environment -> Heat Exposure
+to supply the controller's inputs. Each round then runs Control -> Environment
+-> Heat Exposure -> Pedestrian, carrying the updated graph into the next round.
+One pedestrian simulator is reused for every round. By default,
+one round runs after initialization. Choose a positive number of rounds:
+
+```powershell
+python main.py --rounds 5 --time 13:00 --scenario hot --debug-dir debug
+```
+
+Time and scenario stay fixed across rounds. Each round's environment applies
+the latest misting commands, then heat exposure is recalculated. Final heat
+results reflect the final round's misting state. Signals and LEDs reflect the
+control decision made at the start of that round.
+
+Debug files are grouped under `initialization/` and `round_001/`, `round_002/`,
+and so on. The completion output lists final actuator states.
+
+`build_initialization_pipeline()` defines the initialization stages;
+`build_pipeline()` defines one round. `run_pipeline()` executes a single pass,
+and `run_simulation()` initializes and repeats the rounds. The final output is
+the pedestrian result, with environmental and heat properties retained on its graph. Each stage receives
+the graph produced by the previous stage, including accumulated properties.
 
 ## Testing dataset
 
@@ -70,3 +90,17 @@ stage, including every dynamic property accumulated so far.
 small campus graph with node coordinates, location categories, walkable edges,
 distances, accessibility information, static controllable infrastructure, and
 loader-derived initial actuator state.
+
+## Pedestrian routes
+
+Supply externally calculated node routes using the documented JSON format in
+[`models/pedestrian/README.md`](models/pedestrian/README.md):
+
+```sh
+python main.py --routes models/pedestrian/example_routes.json --rounds 5 --pedestrian-dt 1
+```
+
+Without `--routes`, the pedestrian population is empty. Routes are assigned
+before movement; no route optimizer is included. Each round advances pedestrian
+elapsed time by `--pedestrian-dt` seconds while environmental time stays fixed.
+Signal waits and heat do not yet change pedestrian movement.

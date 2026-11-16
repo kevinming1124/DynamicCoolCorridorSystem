@@ -1,1 +1,1 @@
-# No third-party runtime dependencies are required yet.
+pythermalcomfort==4.8.1

@@ -1,0 +1,454 @@
+{
+  "nodes": [
+    {
+      "node_id": "N01",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 0.0,
+      "y_m": 0.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N02",
+      "location_name": "Parkside",
+      "location_type": "dormitory",
+      "x_m": 60.0,
+      "y_m": 0.0,
+      "accessible": true,
+      "description": "Parkside residential complex"
+    },
+    {
+      "node_id": "N03",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 120.0,
+      "y_m": 0.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N04",
+      "location_name": "Everybody's Kitchen (EVK)",
+      "location_type": "dining_hall",
+      "x_m": 180.0,
+      "y_m": 0.0,
+      "accessible": true,
+      "description": "Main residential dining hall"
+    },
+    {
+      "node_id": "N05",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 240.0,
+      "y_m": 0.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N06",
+      "location_name": "Expo Park/USC Metro Station",
+      "location_type": "transit_stop",
+      "x_m": 300.0,
+      "y_m": 0.0,
+      "accessible": true,
+      "description": "Metro E Line station on the south edge of campus"
+    },
+    {
+      "node_id": "N07",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 360.0,
+      "y_m": 0.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N08",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 420.0,
+      "y_m": 0.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N09",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 480.0,
+      "y_m": 0.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N10",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 540.0,
+      "y_m": 0.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N11",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 0.0,
+      "y_m": 50.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N12",
+      "location_name": "Lyon Center",
+      "location_type": "recreation_center",
+      "x_m": 60.0,
+      "y_m": 50.0,
+      "accessible": true,
+      "description": "Recreation and fitness center"
+    },
+    {
+      "node_id": "N13",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 120.0,
+      "y_m": 50.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N14",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 180.0,
+      "y_m": 50.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N15",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 240.0,
+      "y_m": 50.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N16",
+      "location_name": "Alumni Park",
+      "location_type": "open_space",
+      "x_m": 300.0,
+      "y_m": 50.0,
+      "accessible": true,
+      "description": "Large open lawn in the center of campus"
+    },
+    {
+      "node_id": "N17",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 360.0,
+      "y_m": 50.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N18",
+      "location_name": "Seeley G. Mudd Building",
+      "location_type": "teaching_building",
+      "x_m": 420.0,
+      "y_m": 50.0,
+      "accessible": true,
+      "description": "Classroom and lab building"
+    },
+    {
+      "node_id": "N19",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 480.0,
+      "y_m": 50.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N20",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 540.0,
+      "y_m": 50.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N21",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 0.0,
+      "y_m": 100.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N22",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 60.0,
+      "y_m": 100.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N23",
+      "location_name": "Ronald Tutor Hall",
+      "location_type": "teaching_building",
+      "x_m": 120.0,
+      "y_m": 100.0,
+      "accessible": true,
+      "description": "Viterbi engineering classrooms and labs"
+    },
+    {
+      "node_id": "N24",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 180.0,
+      "y_m": 100.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N25",
+      "location_name": "Doheny Memorial Library",
+      "location_type": "library",
+      "x_m": 240.0,
+      "y_m": 100.0,
+      "accessible": true,
+      "description": "Main campus library"
+    },
+    {
+      "node_id": "N26",
+      "location_name": "Tommy Trojan",
+      "location_type": "landmark",
+      "x_m": 300.0,
+      "y_m": 100.0,
+      "accessible": true,
+      "description": "Central campus landmark and meeting point"
+    },
+    {
+      "node_id": "N27",
+      "location_name": "Ronald Tutor Campus Center",
+      "location_type": "student_center",
+      "x_m": 360.0,
+      "y_m": 100.0,
+      "accessible": true,
+      "description": "Student services, food court, and lounges"
+    },
+    {
+      "node_id": "N28",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 420.0,
+      "y_m": 100.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N29",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 480.0,
+      "y_m": 100.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N30",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 540.0,
+      "y_m": 100.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N31",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 0.0,
+      "y_m": 150.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N32",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 60.0,
+      "y_m": 150.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N33",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 120.0,
+      "y_m": 150.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N34",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 180.0,
+      "y_m": 150.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N35",
+      "location_name": "Leavey Library",
+      "location_type": "library",
+      "x_m": 240.0,
+      "y_m": 150.0,
+      "accessible": true,
+      "description": "24-hour library and study space"
+    },
+    {
+      "node_id": "N36",
+      "location_name": "McCarthy Quad",
+      "location_type": "open_space",
+      "x_m": 300.0,
+      "y_m": 150.0,
+      "accessible": true,
+      "description": "Open lawn between Doheny and Leavey"
+    },
+    {
+      "node_id": "N37",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 360.0,
+      "y_m": 150.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N38",
+      "location_name": "Taper Hall",
+      "location_type": "teaching_building",
+      "x_m": 420.0,
+      "y_m": 150.0,
+      "accessible": true,
+      "description": "Humanities classrooms"
+    },
+    {
+      "node_id": "N39",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 480.0,
+      "y_m": 150.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N40",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 540.0,
+      "y_m": 150.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N41",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 0.0,
+      "y_m": 200.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N42",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 60.0,
+      "y_m": 200.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N43",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 120.0,
+      "y_m": 200.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N44",
+      "location_name": "USC Village",
+      "location_type": "dormitory",
+      "x_m": 180.0,
+      "y_m": 200.0,
+      "accessible": true,
+      "description": "Residential village on the north side of campus"
+    },
+    {
+      "node_id": "N45",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 240.0,
+      "y_m": 200.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N46",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 300.0,
+      "y_m": 200.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N47",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 360.0,
+      "y_m": 200.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N48",
+      "location_name": "Webb Tower",
+      "location_type": "dormitory",
+      "x_m": 420.0,
+      "y_m": 200.0,
+      "accessible": true,
+      "description": "Graduate residence tower"
+    },
+    {
+      "node_id": "N49",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 480.0,
+      "y_m": 200.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    },
+    {
+      "node_id": "N50",
+      "location_name": "",
+      "location_type": "intersection",
+      "x_m": 540.0,
+      "y_m": 200.0,
+      "accessible": true,
+      "description": "Unnamed pedestrian path intersection"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "description": "Weather scenarios. Temperatures in F. The daily low happens around 03:00 and the high at temp_peak_hour. Humidity is highest when it is coolest. cloud_factor scales sunlight: 1.0 is clear sky, 0.5 is heavy cloud.",
+  "scenarios": {
+    "mild": {
+      "temp_low_f": 62.0,
+      "temp_high_f": 80.0,
+      "humidity_high_pct": 70.0,
+      "humidity_low_pct": 40.0,
+      "cloud_factor": 0.8
+    },
+    "hot": {
+      "temp_low_f": 72.0,
+      "temp_high_f": 98.0,
+      "humidity_high_pct": 60.0,
+      "humidity_low_pct": 25.0,
+      "cloud_factor": 1.0
+    },
+    "extreme_heat": {
+      "temp_low_f": 80.0,
+      "temp_high_f": 110.0,
+      "humidity_high_pct": 45.0,
+      "humidity_low_pct": 15.0,
+      "cloud_factor": 1.0
+    },
+    "humid": {
+      "temp_low_f": 75.0,
+      "temp_high_f": 92.0,
+      "humidity_high_pct": 90.0,
+      "humidity_low_pct": 60.0,
+      "cloud_factor": 0.9
+    }
+  }
+}
