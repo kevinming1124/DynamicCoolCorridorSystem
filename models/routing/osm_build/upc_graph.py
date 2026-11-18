@@ -29,6 +29,7 @@ Optional input:
 import itertools
 import json
 import os
+from pathlib import Path
 
 import geopandas as gpd
 import osmnx as ox
@@ -36,7 +37,9 @@ import pandas as pd
 from shapely.geometry import LineString, Point, box
 from shapely.ops import nearest_points, substring
 
-OSM_FILE = "map.osm"
+HERE = Path(__file__).resolve().parent
+OSM_FILE = HERE / "map.osm"
+ox.settings.cache_folder = HERE / "cache"
 # The area we keep: (west, south, east, north), same numbers as the export.
 # Anything outside gets cut off.
 BBOX = (-118.29173, 34.01852, -118.27980, 34.02542)
@@ -49,8 +52,8 @@ WALKABLE = {"footway", "pedestrian", "path", "steps", "living_street",
 TOLERANCE = 15     # meters: junctions closer than this get merged
 SNAP_SAME = 2.0    # meters: closer than this to an existing node = reuse that node
 DOOR_RADIUS = 3.0  # meters: an OSM entrance this close to a building belongs to it
-MANUAL_CSV = "entrances_manual.csv"
-KEY_FILE = "key_buildings.txt"
+MANUAL_CSV = HERE / "entrances_manual.csv"
+KEY_FILE = HERE / "key_buildings.txt"
 
 
 def fetch(tags):
@@ -216,7 +219,7 @@ for name, fp in zip(buildings["name"], buildings.geometry):
 
 # --- 6. Report ---------------------------------------------------------------
 rep = pd.DataFrame(report).sort_values(["source", "building"])
-rep.to_csv("entrance_coverage.csv", index=False)
+rep.to_csv(HERE / "entrance_coverage.csv", index=False)
 print("\nEntrance coverage (buildings per source):")
 print(rep.groupby("source").agg(buildings=("building", "count"), entrances=("entrances", "sum")))
 print("-> 'auto' buildings got a single guessed door; fix important ones in", MANUAL_CSV)
@@ -227,8 +230,8 @@ def describe(graph, label):
 
 
 def save(graph, doors, suffix):
-    ox.save_graphml(graph, f"upc_walk_{suffix}.graphml")
-    with open(f"buildings_{suffix}.json", "w") as f:
+    ox.save_graphml(graph, HERE / f"upc_walk_{suffix}.graphml")
+    with open(HERE / f"buildings_{suffix}.json", "w") as f:
         json.dump(doors, f, indent=2, sort_keys=True)
     print(f"Saved: upc_walk_{suffix}.graphml, buildings_{suffix}.json")
 
@@ -239,7 +242,7 @@ def plot(graph, suffix):
     nodes = list(graph.nodes(data=True))
     node_colors = [color[d["source"]] if d.get("kind") == "entrance" else "#999999" for _, d in nodes]
     node_sizes = [14 if d.get("kind") == "entrance" else 4 for _, d in nodes]
-    path = f"upc_graph_{suffix}.png"
+    path = HERE / f"upc_graph_{suffix}.png"
     try:
         ox.plot_graph(graph, node_size=node_sizes, node_color=node_colors, edge_linewidth=0.7,
                       save=True, filepath=path, show=False)

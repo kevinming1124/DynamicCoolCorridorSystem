@@ -355,10 +355,12 @@ When asking GPT to create a model, also specify:
 ## Routing / pedestrian integration
 
 Read models/routing/README.md and dataset/usc_osm_trimmed/README.md. Routingc's
-unchanged search/cost functions now live in prototypes/osm_campus/routing_core.py;
+unchanged search/cost functions now live in models/routing/routing_core.py;
 both prototype and pipeline import them. The pipeline graph view supplies those
 functions with heat-derived walkability, not the prototype's placeholder values.
 No OSMnx is required at runtime. STREL is registered only in the final verification audit.
+Optional standalone demos live in models/routing/demo; OSM source data and
+rebuild/export tools live in models/routing/osm_build. See their READMEs.
 
 build_pipeline registers Routing immediately before the persistent simulator.
 Routing calls assign_route for pending requests once and retains unmatched

@@ -1,7 +1,7 @@
 """
 Cool Corridors router: comfort-vs-speed routing on the UPC walkway graph.
 
-Run (from the Cool Corridors folder, after upc_graph.py has made the graph):
+Run from this folder after ../osm_build/upc_graph.py has made the graphs:
     python router.py
     python router.py --start "Taper Hall" --dest "Ginsburg Hall"
     python router.py --graph full --block
@@ -12,17 +12,22 @@ Prints each route's stats and saves routes.png.
 import argparse
 import json
 import random
+import sys
+from pathlib import Path
 from math import sin, cos
 
 import matplotlib.pyplot as plt
 import osmnx as ox
 from shapely.geometry import LineString
 
-if __package__:
-    from .routing_core import K, dijkstra, make_cost, route, set_blocked
-else:
-    from routing_core import K, dijkstra, make_cost, route, set_blocked
+# Keep direct execution from this folder working with the shared pipeline code.
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from models.routing.routing_core import K, dijkstra, make_cost, route, set_blocked
 WALK_SPEED = 1.4  # meters per second, typical walking pace
+HERE = Path(__file__).resolve().parent
+GRAPH_DIRECTORY = HERE.parent / "osm_build"
 
 
 # --- Route measurements and plotting helpers ----------------------------------
@@ -61,8 +66,8 @@ def main():
                          "that comfort routing really detours")
     args = ap.parse_args()
 
-    G = ox.load_graphml(f"upc_walk_{args.graph}.graphml")
-    with open(f"buildings_{args.graph}.json") as f:
+    G = ox.load_graphml(GRAPH_DIRECTORY / f"upc_walk_{args.graph}.graphml")
+    with open(GRAPH_DIRECTORY / f"buildings_{args.graph}.json") as f:
         doors = {b: [int(n) for n in ns] for b, ns in json.load(f).items()}
     for b in (args.start, args.dest):
         if b not in doors:
@@ -128,8 +133,8 @@ def main():
     ax.legend(loc="lower left")
     ax.set_aspect("equal")
     ax.axis("off")
-    fig.savefig("routes.png", dpi=150, bbox_inches="tight")
-    print("\nSaved routes.png")
+    fig.savefig(HERE / "routes.png", dpi=150, bbox_inches="tight")
+    print(f"\nSaved {HERE / 'routes.png'}")
 
 
 if __name__ == "__main__":

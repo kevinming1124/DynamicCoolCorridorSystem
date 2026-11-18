@@ -1,6 +1,6 @@
 # USC OSM pipeline dataset
 
-Exported from routingc's `prototypes/osm_campus/map.osm` via its existing
+Exported from routingc's `models/routing/osm_build/map.osm` via its existing
 `upc_graph.py` trimmed graph. Attribution: OpenStreetMap contributors, ODbL;
 see https://www.openstreetmap.org/copyright . This is a derived simulation
 network, not a complete or surveyed USC accessibility map.
@@ -43,8 +43,16 @@ two misters. Run metadata records selected placements in every stage's output.
 
 ## Rebuild (optional development dependencies)
 
-Install prototypes/osm_campus/requirements.txt, run upc_graph.py inside that
-folder to generate the trimmed GraphML/building lookup, then run
-`python prototypes/osm_campus/export_pipeline.py` from the repository root.
+From the repository root:
+
+```sh
+python -m pip install -r models/routing/osm_build/requirements.txt
+python models/routing/osm_build/upc_graph.py
+python models/routing/osm_build/export_pipeline.py
+```
+
+The builder writes GraphML/building lookups beside its scripts in `osm_build`;
+the exporter writes to `dataset/usc_osm_trimmed`. Standalone demos now live in
+`models/routing/demo`; see its README for commands.
 The exported JSON files are sufficient for the main pipeline; it does not
 import OSMnx, plotting, or the standalone prototype simulator.

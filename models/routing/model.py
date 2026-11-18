@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from prototypes.osm_campus.routing_core import dijkstra, make_cost
+from .routing_core import dijkstra, make_cost
 from utils import CampusGraph, ModelInput, ModelOutput
 from models.pedestrian.agent import PedestrianState
 from models.pedestrian.model import PedestrianSimulator

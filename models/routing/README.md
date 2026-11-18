@@ -51,10 +51,13 @@ entrances; pending records include resolved endpoints and speed.
 
 ## Same algorithm, explicit heat adapter
 
-`prototypes/osm_campus/routing_core.py` contains routingc's unchanged Dijkstra,
+`models/routing/routing_core.py` contains routingc's unchanged Dijkstra,
 make_cost, route and set_blocked functions. Both the standalone OSM prototype
 and this adapter import them. The pipeline uses a small CampusGraph edge view,
 without a second graph class or runtime NetworkX/OSMnx dependency.
+The main pipeline does not depend on the optional [demo](demo/README.md) or
+[osm_build](osm_build/README.md) folders. They contain standalone visualizations
+and tools for rebuilding the exported dataset, respectively.
 
 The prototype used placeholder walkability. The pipeline instead defines:
 

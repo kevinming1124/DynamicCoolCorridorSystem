@@ -21,7 +21,10 @@ import osmnx as ox
 from matplotlib.animation import FuncAnimation, PillowWriter
 from shapely.geometry import LineString
 
-from router import WALK_SPEED, dijkstra, edge_line, make_cost, placeholder_walkability, set_blocked
+if __package__:
+    from .router import GRAPH_DIRECTORY, HERE, WALK_SPEED, dijkstra, edge_line, make_cost, placeholder_walkability, set_blocked
+else:
+    from router import GRAPH_DIRECTORY, HERE, WALK_SPEED, dijkstra, edge_line, make_cost, placeholder_walkability, set_blocked
 
 DT = 5  # seconds per simulation step (small enough for smooth motion)
 
@@ -203,8 +206,8 @@ def main():
     ap.add_argument("--seed", type=int, default=1, help="change for a different random run")
     args = ap.parse_args()
 
-    G = ox.load_graphml(f"upc_walk_{args.graph}.graphml")
-    with open(f"buildings_{args.graph}.json") as f:
+    G = ox.load_graphml(GRAPH_DIRECTORY / f"upc_walk_{args.graph}.graphml")
+    with open(GRAPH_DIRECTORY / f"buildings_{args.graph}.json") as f:
         doors = {b: [int(n) for n in ns] for b, ns in json.load(f).items()}
     placeholder_walkability(G)
 
@@ -219,8 +222,8 @@ def main():
 
     print(f"\nRendering {len(frames)} frames ({len(frames) * DT / 60:.0f} simulated minutes)...")
     try:
-        animate(G, frames, events, "sim.gif")
-        print("Saved sim.gif")
+        animate(G, frames, events, HERE / "sim.gif")
+        print(f"Saved {HERE / 'sim.gif'}")
     except OSError as e:
         print("WARNING: couldn't save sim.gif (close it if it's open, then rerun):", e)
 

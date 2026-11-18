@@ -17,7 +17,7 @@ import osmnx as ox
 from shapely.geometry import LineString
 
 HERE = Path(__file__).resolve().parent
-DESTINATION = HERE.parents[1] / "dataset" / "usc_osm_trimmed"
+DESTINATION = HERE.parents[2] / "dataset" / "usc_osm_trimmed"
 
 
 def export() -> dict:
