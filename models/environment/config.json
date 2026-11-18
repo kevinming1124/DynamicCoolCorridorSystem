@@ -24,7 +24,6 @@
     "default_time": "12:00",
     "default_scenario": "hot",
     "scenarios_file": "scenarios.json",
-    "shade_schedule_file": "dataset/campus_50/shade_schedule.json",
     "shade_profiles": {
       "open": {"00:00": 5.0},
       "tree_lined": {"00:00": 60.0},

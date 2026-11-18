@@ -16,8 +16,9 @@ python models/routing/osm_build/export_pipeline.py
 
 Paths are resolved relative to the scripts, so they also work from other
 directories. The builder reads the bundled OSM file offline. The exporter
-overwrites the base JSON files in `dataset/usc_osm_trimmed`, including its assumed
-shade schedule and hypothetical actuators; see the dataset README for details.
+overwrites the base JSON files in `dataset/usc_osm_trimmed`, including its
+hypothetical actuators and source-walkway grouping. It does not generate a fixed
+shade schedule; Environment generates shade. See the dataset README for details.
 
 ## Files and outputs
 

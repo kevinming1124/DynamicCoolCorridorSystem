@@ -11,7 +11,6 @@ from typing import Any, Mapping, Protocol, Sequence
 
 from models.control import ControlModel
 from models.environment import EnvironmentModel
-from models.environment.model import ModelConfig as EnvironmentConfig
 from models.heat_exposure import HeatExposureModel
 from models.pedestrian.model import PedestrianSimulator
 from models.routing import RoutingModel, TripRequest, load_trip_requests
@@ -36,13 +35,8 @@ def dataset_metadata(directory: Path) -> dict:
 
 
 def build_initialization_pipeline(dataset_directory: Path | None = None) -> list[PipelineStage]:
-    """Use the selected map's shade schedule rather than another map's edges."""
-    config = EnvironmentConfig.from_file()
-    if dataset_directory is not None:
-        filename = dataset_metadata(dataset_directory).get("files", {}).get("shade_schedule")
-        schedule = str((dataset_directory / filename).resolve()) if filename else None
-        config = replace(config, metadata={**config.metadata, "shade_schedule_file": schedule})
-    return [EnvironmentModel(config), HeatExposureModel.from_config()]
+    """Environment reads the selected map's schedule from dataset_dir in context."""
+    return [EnvironmentModel.from_config(), HeatExposureModel.from_config()]
 
 
 def build_pipeline(pedestrians: PedestrianSimulator,
@@ -111,6 +105,9 @@ def run_simulation(
     """
     if isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 1:
         raise ValueError("Rounds must be a positive integer")
+    context = dict(context or {})
+    if dataset_directory is not None:
+        context["dataset_dir"] = str(dataset_directory)
     debug_root = Path(debug_directory) if debug_directory is not None else None
     print("Initializing: Environment -> Heat Exposure")
     output = run_pipeline(

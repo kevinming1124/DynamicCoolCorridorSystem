@@ -86,15 +86,19 @@ Where the shade type comes from, per edge:
    works at any scale. On campus_50 this rule gives the same shade type as
    the hand-made schedule on all 100 edges.
 
-So a new dataset needs no shade file to get realistic shade, a dataset that
+So a new dataset needs no shade file to get simulated shade, a dataset that
 grows new edges gets shade for them automatically, and campus_50's values are
 unchanged.
 
-Models that call this one directly without `dataset_dir` (control and heat
-exposure self-tests, routing's forecast) still get campus_50's schedule
-through `shade_schedule_file` in `config.json`, but only when every edge in
-that file exists in the graph, so it is never applied to a different graph
-that reuses edge IDs. The output diagnostics report `shade_source`,
+USC has no fixed shade schedule: Environment generates shade using these
+profiles. Its manifest also names `source_edges.json`, so each original
+walkway receives one profile shared by all its geometry segments. Direction
+and spacing are calculated from original walkway endpoints. These are
+simulation assumptions, not shadows calculated from surveyed buildings or trees.
+
+Pass `dataset_dir` when calling Environment to load any dataset schedule and
+source-walkway grouping. Calls without it use automatic shade per graph edge;
+there is no implicit campus_50 fallback. The output diagnostics report `shade_source`,
 `edges_with_scheduled_shade`, and `edges_with_auto_shade`.
 
 **Misting** uses a circular zone with radius `mist_range_m` (10 m) around each
@@ -136,13 +140,14 @@ From the repository root:
 python -m models.environment.model
 ```
 
-This prints the minimum, average, and maximum of each value across all 100
+The default dataset is `dataset/usc_osm_trimmed`. This prints the minimum,
+average, and maximum of each value across all 930
 edges at the default time and scenario. Useful options:
 
 ```powershell
 python -m models.environment.model --time 08:00
 python -m models.environment.model --time 13:00 --scenario extreme_heat
-python -m models.environment.model --time 13:00 --mister-on A01 A03
+python -m models.environment.model --time 13:00 --mister-on SIM_M1 SIM_M2
 python -m models.environment.model --day
 python -m models.environment.model --time 13:00 --save debug/environment_1300.json
 ```
@@ -151,7 +156,7 @@ python -m models.environment.model --time 13:00 --save debug/environment_1300.js
 would. `--day` prints campus averages for every 30-minute step from 08:00 to
 18:00. `--save` writes the complete output, including every edge, to a JSON
 file. It also runs on the tiny dataset with
-`--dataset dataset/tiny_campus_block` (every edge uses the default shade there).
+`--dataset dataset/tiny_campus_block` (using automatic shade profiles there).
 
 ## Use it from other code
 
@@ -159,11 +164,12 @@ file. It also runs on the tiny dataset with
 from models.environment import EnvironmentModel
 from utils import ModelInput, load_campus_graph
 
-graph = load_campus_graph("dataset/campus_50")
+dataset_dir = "dataset/usc_osm_trimmed"
+graph = load_campus_graph(dataset_dir)
 model = EnvironmentModel.from_config()
 
 output = model.predict(
-    ModelInput(graph=graph, context={"time": "13:00", "scenario": "hot"})
+    ModelInput(graph=graph, context={"dataset_dir": dataset_dir, "time": "13:00", "scenario": "hot"})
 )
 
 edge = output.graph.edges[0]
@@ -173,16 +179,14 @@ print(edge.edge_id, edge.properties["air_temp_f"], edge.properties["shade_pct"])
 `output.diagnostics` also reports the uncooled temperature/humidity and misting
 range/humidity settings as evidence for the final verification audit, plus the
 time, scenario, which misters were on,
-and how many edges used the default shade.
+and how many edges used scheduled or automatic shade.
 
 ## Connecting it to the pipeline
 
-The model is not yet added to `main.py`, because that file belongs to the
-pipeline owner. To add it, import `EnvironmentModel` in `main.py` and put
-`EnvironmentModel.from_config()` first in `build_pipeline()`. Running the whole
-simulated day needs `main.py` to run the pipeline once per 30-minute step and
-pass `{"time": ..., "scenario": ...}` as context; until then this model uses its
-defaults.
+`main.py` already runs Environment during initialization and each simulation
+round, passing the selected dataset folder through `dataset_dir`. Time stays
+fixed during a simulation run. Use the standalone `--day` option to inspect
+shade and weather at successive times of day.
 
 ## Files
 
