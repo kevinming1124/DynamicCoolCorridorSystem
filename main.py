@@ -206,6 +206,7 @@ def main() -> None:
         context={
             "time": arguments.time,
             "scenario": arguments.scenario,
+            "dataset_dir": str(arguments.dataset),
             "pedestrian_dt_sec": arguments.pedestrian_dt,
         },
         pedestrians=pedestrians,
