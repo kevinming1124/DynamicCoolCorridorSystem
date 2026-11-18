@@ -59,6 +59,31 @@ Run every configured model stage from the project root:
 python main.py
 ```
 
+Select one of the proposed USC misting layouts without copying the map:
+
+```powershell
+python main.py --misting-count 4 --debug-dir debug/misting-4
+python main.py --misting-count 6 --debug-dir debug/misting-6
+python main.py --misting-count 10 --debug-dir debug/misting-10
+python main.py --misting-count 0 --debug-dir debug/misting-0
+```
+
+The layouts use the first 4, 6, or 10 ordered placements in
+`dataset/usc_osm_trimmed/misting_scenarios.json`; zero is the no-misting baseline.
+Only misting actuators are replaced in memory. Existing signals, map geometry,
+buildings, and shade are shared. Every mister starts off and uses the same 5.4 F
+full cooling strength. The environment configuration supplies the shared radius
+(currently 10 m); startup rejects overlapping or touching cooling circles and
+invalid anchors. Placement names refer to hypothetical locations on the graph.
+
+Omitting `--misting-count` preserves the dataset's original actuators (two
+misters on USC). Explicit scenarios require a matching `misting_scenarios.json`
+in the selected dataset; these layouts are provided only for USC. Debug outputs
+from every stage record `diagnostics.misting_scenario`, including count, radius,
+positions, cooling strengths, and preserved non-misting actuator IDs. Keep trips,
+weather, rounds, and pedestrian timestep equal when comparing layouts. The zero
+baseline retains signal control, so it isolates the effect of adding misting.
+
 Save the complete output of each stage for debugging:
 
 ```powershell

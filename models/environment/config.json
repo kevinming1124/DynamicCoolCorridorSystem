@@ -16,7 +16,7 @@
     "sunrise_hour": 6.0,
     "sunset_hour": 20.0,
     "peak_solar_radiation_wm2": 900.0,
-    "mist_range_m": 75.0,
+    "mist_range_m": 10.0,
     "mist_humidity_increase_pct": 5.0,
     "auto_shade_axis_ratio": 2.0
   },

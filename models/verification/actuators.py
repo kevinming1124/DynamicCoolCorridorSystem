@@ -6,12 +6,22 @@ import math
 from .checks import FAIL, NA, PASS, number
 
 
-def point_segment_distance(x, y, start, end):
+def segment_circle_coverage(x, y, radius, start, end):
+    """Independently find the covered parameter interval via circle intersections."""
     dx, dy = end.x_m - start.x_m, end.y_m - start.y_m
     length_squared = dx * dx + dy * dy
-    fraction = 0.0 if length_squared == 0 else max(
-        0.0, min(1.0, ((x - start.x_m) * dx + (y - start.y_m) * dy) / length_squared))
-    return math.hypot(x - start.x_m - fraction * dx, y - start.y_m - fraction * dy)
+    if radius <= 0 or length_squared == 0:
+        return 0.0
+    ox, oy = start.x_m - x, start.y_m - y
+    b = 2.0 * (ox * dx + oy * dy)
+    c = ox * ox + oy * oy - radius * radius
+    discriminant = b * b - 4.0 * length_squared * c
+    if discriminant <= 0:
+        return 0.0
+    root = math.sqrt(discriminant)
+    entry = (-b - root) / (2.0 * length_squared)
+    exit = (-b + root) / (2.0 * length_squared)
+    return max(0.0, min(1.0, exit) - max(0.0, entry))
 
 
 def audit_actuators(network, environment, before, after, dt, tolerance):
@@ -44,9 +54,9 @@ def audit_actuators(network, environment, before, after, dt, tolerance):
         start, end = graph.nodes[edge.from_node], graph.nodes[edge.to_node]
         total = 0.0
         for actuator in on_misters:
-            distance = point_segment_distance(actuator.x_m, actuator.y_m, start, end)
-            if radius > 0 and distance < radius:
-                total += actuator.max_heat_reduction_f * (1.0 - distance / radius)
+            coverage = segment_circle_coverage(
+                actuator.x_m, actuator.y_m, radius, start, end)
+            total += actuator.max_heat_reduction_f * coverage
         cooling = min(total, maximum)
         humidity = base_humidity + (humidity_increase * cooling / maximum if maximum > 0 else 0.0)
         expected = {"mist_cooling_f": round(cooling, 2),

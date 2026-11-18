@@ -17,6 +17,8 @@ safe way to extend the project.
 - Environment time and scenario stay fixed; pedestrian elapsed seconds advance separately
 - Each round receives the previous round's graph; an advancing shared clock is deferred
 - Default dataset: `usc_osm_trimmed` (real OSM geometry, assumed simulation inputs); legacy datasets remain available
+- Optional `--misting-count 0|4|6|10` loads nested USC placements from `misting_scenarios.json` without copying the map; omission retains original actuators. Every stage records the explicit selection in `diagnostics.misting_scenario`.
+- Misting uses a 10 m radius and covered-length fraction times full cooling, without distance decay. Scenario startup validates anchors and rejects touching/overlapping circles.
 - Coordinates: local `x_m` and `y_m` values in meters
 - Legacy shared unit tests were removed; this branch retains its existing pedestrian tests
 

@@ -17,6 +17,7 @@ from models.pedestrian.model import PedestrianSimulator
 from models.routing import RoutingModel, TripRequest, load_trip_requests
 from models.verification import VerificationModel
 from utils import CampusGraph, ModelInput, ModelOutput, load_campus_graph
+from utils.graph.misting_scenarios import MISTING_COUNTS, apply_misting_scenario
 
 
 PROJECT_ROOT = Path(__file__).parent
@@ -78,6 +79,11 @@ def run_pipeline(
         if isinstance(stage, PedestrianSimulator):
             runtime_context["pedestrian_before_movement"] = stage.get_state()
         final_output = stage.predict(model_input)
+        if "misting_scenario" in runtime_context:
+            final_output = replace(final_output, diagnostics={
+                **final_output.diagnostics,
+                "misting_scenario": runtime_context["misting_scenario"],
+            })
         runtime_context["stage_diagnostics"][final_output.model_name] = final_output.diagnostics
         if debug_directory is not None:
             safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", final_output.model_name)
@@ -142,13 +148,18 @@ def positive_rounds(value: str) -> int:
     return rounds
 
 
-def parse_arguments() -> argparse.Namespace:
+def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--dataset",
         type=Path,
         default=DEFAULT_DATASET,
         help="Directory containing dataset.json and its referenced JSON files",
+    )
+    parser.add_argument(
+        "--misting-count", type=int, choices=MISTING_COUNTS,
+        help="Select a nested misting layout (0, 4, 6, 10); requires the dataset's "
+             "misting_scenarios.json. Omit to use original dataset actuators.",
     )
     parser.add_argument(
         "--debug-dir",
@@ -185,12 +196,18 @@ def parse_arguments() -> argparse.Namespace:
         default=1.0,
         help="Movement seconds per round (default: 1.0; zero reports occupancy only)",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def main() -> None:
     arguments = parse_arguments()
     graph = load_campus_graph(arguments.dataset)
+    misting_scenario = None
+    if arguments.misting_count is not None:
+        graph, misting_scenario = apply_misting_scenario(
+            graph, arguments.dataset, arguments.misting_count,
+            EnvironmentConfig.from_file().parameters["mist_range_m"],
+        )
     pedestrians = PedestrianSimulator(graph)
     trip_file = arguments.trips or arguments.routes
     requests = load_trip_requests(trip_file) if trip_file else None
@@ -198,7 +215,12 @@ def main() -> None:
     print(f"Dataset: {metadata.get('dataset_id', arguments.dataset.name)}; "
           f"{len(graph.nodes)} nodes, {len(graph.edges)} edges")
     for assumption in metadata.get("assumptions", []):
+        if misting_scenario is not None and assumption == "Two misters and two signals are hypothetical simulation infrastructure.":
+            continue
         print(f"Simulation assumption: {assumption}")
+    if misting_scenario is not None:
+        print(f"Misting scenario: {arguments.misting_count} hypothetical misters, "
+              f"{misting_scenario['mist_range_m']:g} m radius; other actuators preserved")
     final_output = run_simulation(
         graph=graph,
         rounds=arguments.rounds,
@@ -208,6 +230,7 @@ def main() -> None:
             "scenario": arguments.scenario,
             "dataset_dir": str(arguments.dataset),
             "pedestrian_dt_sec": arguments.pedestrian_dt,
+            **({"misting_scenario": misting_scenario} if misting_scenario is not None else {}),
         },
         pedestrians=pedestrians,
         trip_requests=requests,

@@ -28,6 +28,19 @@ Do not apply campus_50's actuator positions or shade IDs to this map. The runner
 loads the selected dataset's own schedule. A different comfort preference may
 select the same route under these uniform shade assumptions.
 
+## Optional misting layouts
+
+`python main.py --misting-count 0|4|6|10` selects a runtime overlay from
+`misting_scenarios.json` (replace the alternatives with a single number).
+Four uses placements 1-4, six uses 1-6, and ten uses 1-10, matching the proposed
+comparison maps. The first two retain the original mister locations; added
+locations favor junctions on shortest paths between building entrances, with
+spatial separation. This heuristic is not based on measured pedestrian demand
+or a proven optimal layout. All use the environment's 10 m default radius.
+Zero removes all misters. Signals remain identical across scenarios, and the
+base dataset files are never rewritten. Omit the option to retain the original
+two misters. Run metadata records selected placements in every stage's output.
+
 ## Rebuild (optional development dependencies)
 
 Install prototypes/osm_campus/requirements.txt, run upc_graph.py inside that

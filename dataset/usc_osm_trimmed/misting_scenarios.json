@@ -1,0 +1,17 @@
+{
+  "dataset_id": "usc_osm_trimmed",
+  "description": "Nested hypothetical placements for comparative simulation; not surveyed hardware or optimized demand-based locations.",
+  "max_heat_reduction_f": 5.4,
+  "placements": [
+    {"actuator_id": "SIM_M1", "anchor_node": "U000237", "description": "Leavey Library"},
+    {"actuator_id": "SIM_M2", "anchor_node": "U000270", "description": "Seeley G. Mudd"},
+    {"actuator_id": "SIM_M3", "anchor_node": "U000036", "description": "Near Tutor Campus Center"},
+    {"actuator_id": "SIM_M4", "anchor_node": "U000000", "description": "Near Wallis Annenberg Hall"},
+    {"actuator_id": "SIM_M5", "anchor_node": "U000080", "description": "Near Taper Hall"},
+    {"actuator_id": "SIM_M6", "anchor_node": "U000035", "description": "Near Bovard"},
+    {"actuator_id": "SIM_M7", "anchor_node": "U000025", "description": "Near Doheny Library"},
+    {"actuator_id": "SIM_M8", "anchor_node": "U000031", "description": "East campus junction"},
+    {"actuator_id": "SIM_M9", "anchor_node": "U000059", "description": "Southeast campus junction"},
+    {"actuator_id": "SIM_M10", "anchor_node": "U000216", "description": "Near Seaver Science Center"}
+  ]
+}

@@ -76,8 +76,9 @@ campus paths and no approximate search cutoff or unproven optimality result.
 
 Actuator verification checks the effects actually implemented:
 
-- Misting: on/off state, point-to-segment distance, configured influence radius,
-  linear decay, additive overlap capped by the strongest active mister, rounded
+- Misting: on/off state, segment-circle covered-length fraction, configured
+  influence radius, coverage-scaled cooling without distance decay,
+  additive contributions capped by the strongest active mister, rounded
   cooling and air temperature, and the implemented humidity increase/clamp.
 - Signals: operating bounds and independent before/after movement accounting.
   Waits apply at controlled departures; co-located signals use their maximum.

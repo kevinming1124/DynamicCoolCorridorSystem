@@ -97,12 +97,19 @@ that file exists in the graph, so it is never applied to a different graph
 that reuses edge IDs. The output diagnostics report `shade_source`,
 `edges_with_scheduled_shade`, and `edges_with_auto_shade`.
 
-**Misting** cools every edge within `mist_range_m` (75 m) of a mister that is
-on. Cooling is strongest at the mister (up to its `max_heat_reduction_f`, 5.4 F)
-and fades to zero at 75 m, measured to the closest point on the path. Where two
-misters overlap, their cooling adds up but never goes past the strongest
-mister's limit. Misting also raises humidity by up to
-`mist_humidity_increase_pct` (5%), scaled the same way.
+**Misting** uses a circular zone with radius `mist_range_m` (10 m) around each
+active mister. Full cooling applies inside the zone and zero outside; there is
+no distance decay. The edge-average cooling contribution is
+`max_heat_reduction_f * (covered length / total length)`. For example, 32%
+coverage gives 32% of the mister's full cooling. Coverage uses the straight
+segment between endpoint coordinates, independently of its stored travel distance.
+Tangencies and zero-length segments contribute zero. Temperature and heat stress
+remain edge averages rather than separate values inside/outside the zone.
+
+Contributions add and retain the existing strongest-active-mister cap; this is
+not a physical overlap model. Use nonoverlapping zones for the demonstration.
+Misting also raises humidity by up to `mist_humidity_increase_pct` (5%), scaled
+by the resulting cooling relative to the strongest active mister's full cooling.
 
 At this stage, temperature, humidity, and sunlight are the same on every edge;
 edges differ through shade and misting.

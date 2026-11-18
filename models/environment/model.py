@@ -374,10 +374,10 @@ class EnvironmentModel:
         return float(profile[_latest_slot(list(profile), state["hour"])])
 
     def _mist_cooling_for(self, edge: GraphEdge, graph: CampusGraph) -> float:
-        """Cooling from misters that are on, fading to zero at mist_range_m.
+        """Length-averaged cooling from active circular misting zones.
 
-        Distance is measured from the mister to the closest point on the edge.
-        Overlapping misters add up but never exceed the strongest mister's limit.
+        Each mister supplies full cooling inside its radius and zero outside.
+        Contributions retain the existing strongest-mister cap.
         """
         if not self._state["misters_on"]:
             return 0.0
@@ -386,13 +386,11 @@ class EnvironmentModel:
         mist_range = self._parameter("mist_range_m")
         total = 0.0
         for mister in self._state["misters_on"]:
-            distance = _point_to_segment_m(
-                mister.x_m, mister.y_m, start.x_m, start.y_m, end.x_m, end.y_m
+            coverage = _segment_circle_coverage_ratio(
+                mister.x_m, mister.y_m, mist_range,
+                start.x_m, start.y_m, end.x_m, end.y_m
             )
-            if distance < mist_range:
-                total += (mister.max_heat_reduction_f or 0.0) * (
-                    1 - distance / mist_range
-                )
+            total += (mister.max_heat_reduction_f or 0.0) * coverage
         return min(total, self._state["max_mist_reduction_f"])
 
     def _load_scenarios(self) -> dict[str, dict[str, float]]:
@@ -704,16 +702,29 @@ def _hour_from_text(time_text: str) -> float:
     return hours + minutes / 60
 
 
-def _point_to_segment_m(
-    px: float, py: float, ax: float, ay: float, bx: float, by: float
+def _segment_circle_coverage_ratio(
+    px: float, py: float, radius: float,
+    ax: float, ay: float, bx: float, by: float
 ) -> float:
-    """Shortest distance in meters from point P to the segment A-B."""
+    """Fraction of straight segment A-B inside the circle centered at P.
+
+    The dimensionless fraction uses coordinate length, not travel distance.
+    Tangencies, zero-length segments, and nonpositive radii cover no length.
+    """
     dx, dy = bx - ax, by - ay
-    length_sq = dx * dx + dy * dy
-    if length_sq == 0:
-        return math.hypot(px - ax, py - ay)
-    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / length_sq))
-    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+    length = math.hypot(dx, dy)
+    if radius <= 0 or length == 0:
+        return 0.0
+    ux, uy = dx / length, dy / length
+    projection = (px - ax) * ux + (py - ay) * uy
+    perpendicular = (px - ax) * uy - (py - ay) * ux
+    half_chord_squared = radius * radius - perpendicular * perpendicular
+    if half_chord_squared <= 0:
+        return 0.0
+    half_chord = math.sqrt(half_chord_squared)
+    covered = max(0.0, min(length, projection + half_chord)
+                  - max(0.0, projection - half_chord))
+    return min(1.0, covered / length)
 
 
 def _parse_arguments():
