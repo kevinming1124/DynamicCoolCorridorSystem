@@ -2,16 +2,17 @@
 import contextlib
 import copy
 import io
-import json
-import tempfile
 import unittest
-from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from models.verification.model import VerificationModel, main, run_demo
+from main import run_simulation
+from models.environment.model import ModelConfig as EnvironmentConfig
+from models.routing import load_trip_requests
+from models.verification.model import VerificationModel
 from models.verification.checks import RouteNetwork
-from utils import ModelInput
+from utils import ModelInput, load_campus_graph
+from utils.graph.misting_scenarios import apply_misting_scenario
 
 
 class TestVerification(unittest.TestCase):
@@ -25,15 +26,24 @@ class TestVerification(unittest.TestCase):
             return original(model, model_input)
 
         with patch.object(VerificationModel, "predict", capture), contextlib.redirect_stdout(io.StringIO()):
-            cls.result = run_demo()
+            dataset = Path(__file__).resolve().parents[2] / "dataset" / "usc_osm_trimmed"
+            trips = dataset.parents[1] / "models" / "routing" / "example_signal_trips.json"
+            radius = EnvironmentConfig.from_file().parameters["mist_range_m"]
+            graph, layout = apply_misting_scenario(load_campus_graph(dataset), dataset, 4, radius)
+            cls.result = run_simulation(
+                graph, rounds=3, dataset_directory=dataset,
+                trip_requests=load_trip_requests(trips),
+                context={"time": "13:00", "scenario": "hot", "pedestrian_dt_sec": 30.0,
+                         "misting_scenario": layout},
+            )
 
     def verify(self, model_input, model=None):
         with contextlib.redirect_stdout(io.StringIO()):
             return (model or VerificationModel.from_config()).predict(model_input)
 
-    def test_default_usc_demo_and_arrival_history(self):
+    def test_usc_pipeline_and_arrival_history(self):
         output = self.result
-        self.assertEqual(output.diagnostics["demo"]["misting_count"], 4)
+        self.assertEqual(output.diagnostics["misting_scenario"]["misting_count"], 4)
         self.assertEqual(len(output.graph.edges), 930)
         self.assertEqual(len(self.inputs), 3)
         self.assertEqual(output.diagnostics["verification"]["simulation_status"], "PASS")
@@ -115,35 +125,6 @@ class TestVerification(unittest.TestCase):
         del context["pedestrian_before_movement"]
         with self.assertRaisesRegex(ValueError, "before_movement"):
             self.verify(ModelInput(evidence.graph, context))
-
-    def test_cli_saves_full_audit_and_options(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "verification.json"
-            with contextlib.redirect_stdout(io.StringIO()):
-                main(["--misting-count", "6", "--time", "08:00", "--scenario", "mild",
-                      "--rounds", "3", "--pedestrian-dt", "30", "--save", str(path)])
-            saved = json.loads(path.read_text())
-        self.assertEqual(saved["diagnostics"]["demo"]["misting_count"], 6)
-        self.assertEqual(len(saved["diagnostics"]["verification"]["round_history"]), 3)
-        self.assertEqual(saved["diagnostics"]["demo"]["scenario"], "mild")
-
-    def test_zero_ten_and_base_layout_selection(self):
-        for count, expected in ((0, 0), (10, 10), (None, 2)):
-            with self.subTest(count=count), contextlib.redirect_stdout(io.StringIO()):
-                result = run_demo(misting_count=count, rounds=1, pedestrian_dt=0)
-            self.assertEqual(result.diagnostics["demo"]["misting_count"], expected)
-            self.assertEqual(len(result.diagnostics["verification"]["round_history"]), 1)
-
-    def test_cli_distinguishes_policy_failure_and_execution_error(self):
-        failed_audit = {**self.result.diagnostics["verification"], "simulation_status": "FAIL"}
-        failed = replace(self.result, diagnostics={**self.result.diagnostics, "verification": failed_audit})
-        with patch("models.verification.model.run_demo", return_value=failed):
-            with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as exit_info:
-                main([])
-        self.assertEqual(exit_info.exception.code, 1)
-        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as exit_info:
-            main(["--trips", "missing-verification-trips.json"])
-        self.assertEqual(exit_info.exception.code, 2)
 
 
 if __name__ == "__main__":

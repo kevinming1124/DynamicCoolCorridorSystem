@@ -28,7 +28,7 @@ Run these smoke checks after making changes:
 python -m pip install -r requirements.txt
 python main.py
 python -m models._template.model
-python -m models.verification.model
+python -m unittest models.verification.test_model
 python -m compileall -q main.py utils models
 ```
 

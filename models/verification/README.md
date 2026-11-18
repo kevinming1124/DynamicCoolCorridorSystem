@@ -131,41 +131,27 @@ the audited policy; enforcing compliance is a subsequent routing change.
 ```powershell
 python main.py --debug-dir debug/verification
 python main.py --trips models/routing/example_signal_trips.json --rounds 3 --pedestrian-dt 60 --debug-dir debug/verification-signals
-python -m models.verification.model
-python -m models.verification.model --misting-count 6 --time 08:00 --scenario mild
-python -m models.verification.model --rounds 3 --pedestrian-dt 30 --save debug/verification.json
-python -m models.verification.model --misting-count base --trips models/routing/example_trips.json
 python -m unittest models.verification.test_model
 python -m unittest discover -s models/pedestrian/tests -v
 python -m compileall -q main.py utils models
 ```
 
-The direct verifier command defaults to `dataset/usc_osm_trimmed`, the four-mister
-layout, 13:00, and the `hot` scenario. It runs the actual full pipeline, including
-Routing, Control, and actuator effects; no mock inputs are injected into the demo.
-The default trips are `models/routing/example_signal_trips.json`: Olin Hall to
-Seeley G. Mudd and back through SIM_S2. Three rounds of 30 simulated seconds
-exercise waiting across rounds and arrival. Time of day stays fixed across rounds.
+Verification runs through the main pipeline; it has no standalone demo.
+For a USC audit with four misters and signal-crossing trips, use:
 
-Options include `--dataset`, `--trips`, `--time`, `--scenario`, `--rounds`,
-`--pedestrian-dt`, and `--misting-count 0|4|6|10|base`. The `base` option retains
-the dataset's original actuators (two misters for USC); use matching trips and
-`base` when selecting another dataset without layout overlays. These demo defaults
-do not change the main pipeline's defaults. `--save` writes the final graph,
-current detailed audit, compact history of every round, pedestrian state, and
-run settings. Use `main.py --debug-dir` for separate stage reports for every round.
+```powershell
+python main.py --misting-count 4 --trips models/routing/example_signal_trips.json --time 13:00 --scenario hot --rounds 3 --pedestrian-dt 30 --debug-dir debug/verification-usc
+```
 
-The console distinguishes a completed audit from an execution/input error:
-exit code 0 means the audit completed without a FAIL verdict (inspect individual
-statuses for NOT_APPLICABLE or INCONCLUSIVE); code 1 means a requirement violation
-was detected in at least one round; code 2 means execution, input, or saving failed.
-The report is saved before returning code 1. A detected route-policy violation is
-a valid audit result, not a broken test runner, and is not automatically repaired.
+The debug directory contains separate stage outputs for each round. The final
+verification file contains the current detailed audit, compact round history,
+and pedestrian state. A detected policy violation is an audit result; the
+verifier reports it without changing routes or commands.
 
-Tests use USC pipeline evidence and deliberately corrupt selected inputs to
-confirm detection of incorrect cooling, inconsistent waiting, unsafe route
-selection when a safe alternative exists, and missing evidence. They also check
-that input graphs, commands, and evidence remain unchanged, that prior failures
-survive arrival, and that saved reports and exit codes describe the result.
-Verification formulas, policy thresholds, and actuator audit rules are unchanged.
+Tests obtain evidence directly from the USC pipeline and deliberately corrupt
+selected inputs to confirm detection of incorrect cooling, inconsistent waiting,
+unsafe route selection when a safe alternative exists, and missing evidence.
+They also check that graphs, commands, and evidence remain unchanged and that
+prior failures survive arrival. Verification formulas, policy thresholds, and
+actuator audit rules are unchanged.
 Java 21+ with `JAVA_HOME` and root Python requirements remain necessary.

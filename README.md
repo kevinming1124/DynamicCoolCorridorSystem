@@ -125,7 +125,7 @@ All checks use current conditions; there is no heat prediction or forecast input
 Run a tiny-map example with the real upstream models:
 
 ```powershell
-python -m models.verification.model
+python -m unittest models.verification.test_model
 ```
 
 Per-pedestrian results, actuator checks and round history are in
