@@ -17,9 +17,9 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-The requirements file is currently empty because the project uses only the
-Python standard library. Add third-party runtime packages to it when they are
-introduced by the code.
+The root requirements install pythermalcomfort for UTCI calculations. The
+exported USC map and routingc search add no runtime dependencies. OSMnx and
+plotting packages are optional, for rebuilding/running the standalone prototype.
 
 ## Project structure
 
@@ -62,7 +62,7 @@ python main.py --debug-dir debug
 
 The dataset is loaded once. Initialization runs Environment -> Heat Exposure
 to supply the controller's inputs. Each round then runs Control -> Environment
--> Heat Exposure -> Pedestrian, carrying the updated graph into the next round.
+-> Heat Exposure -> Routing -> Pedestrian, carrying the updated graph into the next round.
 One pedestrian simulator is reused for every round. By default,
 one round runs after initialization. Choose a positive number of rounds:
 
@@ -91,16 +91,50 @@ small campus graph with node coordinates, location categories, walkable edges,
 distances, accessibility information, static controllable infrastructure, and
 loader-derived initial actuator state.
 
-## Pedestrian routes
+## Routing and pedestrians on the real USC map
 
-Supply externally calculated node routes using the documented JSON format in
-[`models/pedestrian/README.md`](models/pedestrian/README.md):
+The default dataset is now `dataset/usc_osm_trimmed`, exported from routingc's
+OSM network. See [map assumptions](dataset/usc_osm_trimmed/README.md): real
+walkway geometry, assumed shade/weather, hypothetical misters and signals.
 
 ```sh
-python main.py --routes models/pedestrian/example_routes.json --rounds 5 --pedestrian-dt 1
+python main.py --trips models/routing/example_trips.json --rounds 15 --pedestrian-dt 60 --debug-dir debug/real-campus
 ```
 
-Without `--routes`, the pedestrian population is empty. Routes are assigned
-before movement; no route optimizer is included. Each round advances pedestrian
-elapsed time by `--pedestrian-dt` seconds while environmental time stays fixed.
-Signal waits and heat do not yet change pedestrian movement.
+Routingc computes paths before Pedestrian moves. The example requests two
+Leavey → SGM trips with preferences 0 and 1; they are assigned once and retain
+progress between rounds. Without --trips, config requests four trips once.
+Routing diagnostics are saved as `round_001/04_routingc_model.json`; movement
+snapshots are in `05_pedestrian_simulation.json` each round.
+
+See [routing contract and limitations](models/routing/README.md) and
+[pedestrian state/movement](models/pedestrian/README.md). Routing reads the
+current Heat Exposure output, converts it to comfort weights, and uses
+routingc's shared search/cost functions. No STREL is included.
+
+For old node-route examples, select their matching graph explicitly:
+
+```sh
+python main.py --dataset dataset/campus_50 --routes models/pedestrian/example_routes.json --rounds 5 --pedestrian-dt 60
+```
+
+In the runner, legacy --routes now supplies origin/destination endpoints;
+routingc recomputes the intermediate nodes. The simulator's direct fixed-route
+API is unchanged. --dataset dataset/tiny_campus_block remains available with
+trip requests using that dataset's node IDs.
+
+Environment time/weather remain fixed; --pedestrian-dt only advances walking.
+Pedestrians execute controller-provided signal waits at controlled departures.
+Midtrip rerouting, personal accumulated heat and crowd avoidance remain unimplemented. Control still uses heat rather than pedestrian demand.
+
+## Signal-wait example
+
+```sh
+python main.py --trips models/routing/example_signal_trips.json --rounds 2 --pedestrian-dt 60 --debug-dir debug/signal-waits
+```
+
+These Olin ↔ SGM trips cross SIM_S2 and wait before proceeding. The original
+Leavey ↔ SGM example bypasses the configured signals. Wait countdowns persist
+between rounds; total_travel_time_sec remains walking time and
+total_wait_time_sec records actual waiting. See models/pedestrian/README.md
+for departure matching, concurrent signals and the fixed-delay assumption.

@@ -22,7 +22,7 @@ from pathlib import Path
 from utils import CampusGraph, ModelInput, ModelOutput
 
 from .agent import Pedestrian, PedestrianState
-from .movement import get_edge_distance, move_pedestrian
+from .movement import get_edge_distance, move_pedestrian, validate_signal_wait
 
 
 class PedestrianSimulator:
@@ -85,6 +85,8 @@ class PedestrianSimulator:
                 or existing.current_edge_index != 0
                 or existing.position_m != 0.0
                 or existing.total_travel_time_sec != 0.0
+                or existing.total_wait_time_sec != 0.0
+                or existing.signal_wait_remaining_sec != 0.0
             ):
                 raise ValueError("Route replacement is only supported before departure")
             if nodes[0] != existing.origin or nodes[-1] != existing.destination:
@@ -203,6 +205,8 @@ class PedestrianSimulator:
         ):
             raise ValueError("Invalid pedestrian time values")
 
+        validate_signal_wait(pedestrian)
+
         # Store a copy so external modifications to the original
         # pedestrian cannot change the simulator's internal state.
         self.pedestrians[pedestrian.pedestrian_id] = replace(
@@ -284,17 +288,26 @@ class PedestrianSimulator:
             counts[edge_ids[0]] += 1
 
         graph = candidate.graph.with_edge_property("pedestrian_count", counts)
+        wait_consumed = sum(
+            p.total_wait_time_sec - self.pedestrians[pid].total_wait_time_sec
+            for pid, p in candidate.pedestrians.items()
+        )
+        signal_waiting = sum(p.signal_wait_remaining_sec > 0 for p in candidate.pedestrians.values())
         output = ModelOutput(
             model_name="pedestrian_simulation",
             property_target="edge",
             property_names=("pedestrian_count",),
             property_values={"pedestrian_count": counts},
             graph=graph,
-            diagnostics={"pedestrian_state": candidate.get_state()},
+            diagnostics={"pedestrian_state": candidate.get_state(),
+                         "signal_wait_consumed_sec": wait_consumed},
         )
         self.graph = graph
         self.pedestrians = candidate.pedestrians
         self.simulation_time_sec = candidate.simulation_time_sec
+        if wait_consumed > 0 or signal_waiting:
+            print(f"Pedestrian signals: {wait_consumed:g} s wait consumed across agents this round; "
+                  f"{signal_waiting} still waiting")
         return output
 
     def get_pedestrian(self, pedestrian_id: int) -> Pedestrian:
@@ -333,6 +346,10 @@ class PedestrianSimulator:
                 "state": pedestrian.state.value,
                 "total_travel_time_sec": pedestrian.total_travel_time_sec,
                 "total_wait_time_sec": pedestrian.total_wait_time_sec,
+                "total_elapsed_time_sec": pedestrian.total_travel_time_sec + pedestrian.total_wait_time_sec,
+                "signal_wait_remaining_sec": pedestrian.signal_wait_remaining_sec,
+                "signal_wait_edge_index": pedestrian.signal_wait_edge_index,
+                "waiting_signal_ids": list(pedestrian.waiting_signal_ids),
             })
 
         completed = sum(

@@ -3,19 +3,23 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Mapping, Protocol, Sequence
 
 from models.control import ControlModel
 from models.environment import EnvironmentModel
+from models.environment.model import ModelConfig as EnvironmentConfig
 from models.heat_exposure import HeatExposureModel
 from models.pedestrian.model import PedestrianSimulator
+from models.routing import RoutingModel, TripRequest, load_trip_requests
 from utils import CampusGraph, ModelInput, ModelOutput, load_campus_graph
 
 
 PROJECT_ROOT = Path(__file__).parent
-DEFAULT_DATASET = PROJECT_ROOT / "dataset" / "campus_50"
+DEFAULT_DATASET = PROJECT_ROOT / "dataset" / "usc_osm_trimmed"
 
 
 class PipelineStage(Protocol):
@@ -25,21 +29,33 @@ class PipelineStage(Protocol):
         ...
 
 
-def build_initialization_pipeline() -> list[PipelineStage]:
-    """Calculate the environmental and heat inputs needed by control."""
-    return [
-        EnvironmentModel.from_config(),
-        HeatExposureModel.from_config(),
-    ]
+def dataset_metadata(directory: Path) -> dict:
+    return json.loads((directory / "dataset.json").read_text(encoding="utf-8"))
 
 
-def build_pipeline(pedestrians: PedestrianSimulator) -> list[PipelineStage]:
-    """Create one round, reusing the supplied pedestrian simulator."""
-    return [
-        ControlModel.from_config(),
-        *build_initialization_pipeline(),
-        pedestrians,
-    ]
+def build_initialization_pipeline(dataset_directory: Path | None = None) -> list[PipelineStage]:
+    """Use the selected map's shade schedule rather than another map's edges."""
+    config = EnvironmentConfig.from_file()
+    if dataset_directory is not None:
+        filename = dataset_metadata(dataset_directory).get("files", {}).get("shade_schedule")
+        schedule = str((dataset_directory / filename).resolve()) if filename else None
+        config = replace(config, metadata={**config.metadata, "shade_schedule_file": schedule})
+    return [EnvironmentModel(config), HeatExposureModel.from_config()]
+
+
+def build_pipeline(pedestrians: PedestrianSimulator,
+                   trip_requests: Sequence[TripRequest] | None = None,
+                   dataset_directory: Path | None = None) -> list[PipelineStage]:
+    """Create routing and movement once, preserving population across rounds."""
+    buildings = None
+    if dataset_directory is not None:
+        filename = dataset_metadata(dataset_directory).get("files", {}).get("buildings")
+        if filename:
+            buildings = json.loads((dataset_directory / filename).read_text(encoding="utf-8"))
+    return [ControlModel.from_config(),
+            *build_initialization_pipeline(dataset_directory),
+            RoutingModel.from_config(pedestrians, requests=trip_requests, buildings=buildings),
+            pedestrians]
 
 
 def run_pipeline(
@@ -74,6 +90,8 @@ def run_simulation(
     debug_directory: str | Path | None = None,
     context: Mapping[str, Any] | None = None,
     pedestrians: PedestrianSimulator | None = None,
+    trip_requests: Sequence[TripRequest] | None = None,
+    dataset_directory: Path | None = None,
 ) -> ModelOutput:
     """Initialize once, then carry the graph through exactly ``rounds`` rounds.
 
@@ -86,17 +104,17 @@ def run_simulation(
     print("Initializing: Environment -> Heat Exposure")
     output = run_pipeline(
         graph=graph,
-        stages=build_initialization_pipeline(),
+        stages=build_initialization_pipeline(dataset_directory),
         debug_directory=debug_root / "initialization" if debug_root is not None else None,
         context=context,
     )
     # Build the stage list once; never recreate agents inside the round loop.
     simulator = pedestrians if pedestrians is not None else PedestrianSimulator(output.graph)
-    stages = build_pipeline(simulator)
+    stages = build_pipeline(simulator, trip_requests, dataset_directory)
     for round_number in range(1, rounds + 1):
         print(
             f"Round {round_number}/{rounds}: "
-            "Control -> Environment -> Heat Exposure -> Pedestrian"
+            "Control -> Environment -> Heat Exposure -> Routing -> Pedestrian"
         )
         output = run_pipeline(
             graph=output.graph,
@@ -136,7 +154,7 @@ def parse_arguments() -> argparse.Namespace:
         "--rounds",
         type=positive_rounds,
         default=1,
-        help="Number of control/environment/heat/pedestrian rounds after initialization (default: 1)",
+        help="Number of control/environment/heat/routing/pedestrian rounds after initialization (default: 1)",
     )
     parser.add_argument(
         "--time",
@@ -148,10 +166,13 @@ def parse_arguments() -> argparse.Namespace:
         default="hot",
         help="Environment scenario (default: hot)",
     )
-    parser.add_argument(
+    demand = parser.add_mutually_exclusive_group()
+    demand.add_argument("--trips", type=Path,
+                        help="Trip requests with pedestrian IDs, origin/destination and comfort preference")
+    demand.add_argument(
         "--routes",
         type=Path,
-        help="JSON file containing initial pedestrian IDs and assigned node routes",
+        help="Legacy route JSON: use endpoints as trip requests and recompute paths with routingc",
     )
     parser.add_argument(
         "--pedestrian-dt",
@@ -165,10 +186,14 @@ def parse_arguments() -> argparse.Namespace:
 def main() -> None:
     arguments = parse_arguments()
     graph = load_campus_graph(arguments.dataset)
-    pedestrians = (
-        PedestrianSimulator.from_routes_file(graph, arguments.routes)
-        if arguments.routes is not None else PedestrianSimulator(graph)
-    )
+    pedestrians = PedestrianSimulator(graph)
+    trip_file = arguments.trips or arguments.routes
+    requests = load_trip_requests(trip_file) if trip_file else None
+    metadata = dataset_metadata(arguments.dataset)
+    print(f"Dataset: {metadata.get('dataset_id', arguments.dataset.name)}; "
+          f"{len(graph.nodes)} nodes, {len(graph.edges)} edges")
+    for assumption in metadata.get("assumptions", []):
+        print(f"Simulation assumption: {assumption}")
     final_output = run_simulation(
         graph=graph,
         rounds=arguments.rounds,
@@ -179,6 +204,8 @@ def main() -> None:
             "pedestrian_dt_sec": arguments.pedestrian_dt,
         },
         pedestrians=pedestrians,
+        trip_requests=requests,
+        dataset_directory=arguments.dataset,
     )
 
     print(f"Pipeline completed after {arguments.rounds} round(s): {final_output.model_name}")
@@ -203,6 +230,8 @@ def main() -> None:
         f"{summary['completed_trips']} arrived; "
         f"elapsed {state['simulation_time_sec']:g} s"
     )
+    total_wait = sum(p["total_wait_time_sec"] for p in state["pedestrians"])
+    print(f"Total pedestrian signal waiting: {total_wait:g} person-seconds")
     print("Final actuator states:")
     for actuator in final_output.graph.actuators.values():
         details = f"status={actuator.properties.get('status')}"

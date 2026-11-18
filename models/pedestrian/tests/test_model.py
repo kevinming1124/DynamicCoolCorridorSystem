@@ -10,12 +10,14 @@ pedestrian simulator from the full system pipeline.
 """
 
 import unittest
+from dataclasses import replace
 
 from models.pedestrian.agent import Pedestrian, PedestrianState
 from models.pedestrian.model import PedestrianSimulator
 
 from utils.graph.graph import CampusGraph
-from utils.graph.entities import GraphEdge, GraphNode
+from utils import ModelInput
+from utils.graph.entities import GraphEdge, GraphNode, StaticActuator
 
 
 class TestPedestrianSimulator(unittest.TestCase):
@@ -76,6 +78,49 @@ class TestPedestrianSimulator(unittest.TestCase):
             route=["A", "B", "C"],
             walking_speed_mps=1.4,
         )
+
+    def test_pipeline_preserves_wait_and_occupancy_across_graph_updates(self):
+        signal = StaticActuator("S", "traffic_signal", "A", 0, 0,
+                                controlled_edges=("E1",), min_wait_time_s=0,
+                                max_wait_time_s=90, properties={"wait_time_s": 30})
+        graph = replace(self.graph, actuators={"S": signal})
+        self.simulator.add_pedestrian(self.pedestrian)
+        first = self.simulator.predict(ModelInput(graph, {"pedestrian_dt_sec": 10}))
+        state = first.diagnostics["pedestrian_state"]["pedestrians"][0]
+        self.assertEqual(state["signal_wait_remaining_sec"], 20)
+        self.assertEqual(state["waiting_signal_ids"], ["S"])
+        self.assertEqual(first.property_values["pedestrian_count"]["E1"], 1)
+        # The latest command cannot restart a delay already in progress.
+        graph = replace(first.graph, actuators={"S": replace(signal, properties={"wait_time_s": 90})})
+        self.simulator.predict(ModelInput(graph, {"pedestrian_dt_sec": 25}))
+        agent = self.simulator.get_pedestrian(1)
+        self.assertEqual(agent.signal_wait_remaining_sec, 0)
+        self.assertEqual(agent.total_wait_time_sec, 30)
+        self.assertAlmostEqual(agent.position_m, 7)
+        self.assertEqual(state["signal_wait_remaining_sec"], 20)  # independent snapshot
+
+    def test_failed_signal_step_is_atomic(self):
+        self.simulator.add_pedestrian(self.pedestrian)
+        self.simulator.add_pedestrian(replace(self.pedestrian, pedestrian_id=2, route=["A", "B", "C"]))
+        before = self.simulator.get_state()
+        signal = StaticActuator("S", "traffic_signal", "B", 0, 0,
+                                controlled_edges=("E2",), properties={"wait_time_s": -1})
+        with self.assertRaises(ValueError):
+            self.simulator.predict(ModelInput(replace(self.graph, actuators={"S": signal}),
+                                              {"pedestrian_dt_sec": 100}))
+        self.assertEqual(self.simulator.get_state(), before)
+        self.assertIs(self.simulator.graph, self.graph)
+
+    def test_route_replacement_cannot_erase_an_active_signal_wait(self):
+        signal = StaticActuator("S", "traffic_signal", "A", 0, 0,
+                                controlled_edges=("E1",), properties={"wait_time_s": 30})
+        self.simulator.graph = replace(self.graph, actuators={"S": signal})
+        self.simulator.add_pedestrian(self.pedestrian)
+        self.simulator.step(10)
+        before = self.simulator.get_state()
+        with self.assertRaises(ValueError):
+            self.simulator.assign_route(1, ["A", "B", "C"])
+        self.assertEqual(self.simulator.get_state(), before)
 
     def test_add_pedestrian(self):
         """A valid pedestrian can be registered."""

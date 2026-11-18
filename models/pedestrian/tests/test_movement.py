@@ -7,6 +7,7 @@ validation of invalid movement conditions.
 """
 
 import unittest
+from dataclasses import replace
 
 from models.pedestrian.agent import Pedestrian, PedestrianState
 from models.pedestrian.movement import (
@@ -15,7 +16,7 @@ from models.pedestrian.movement import (
 )
 
 from utils.graph.graph import CampusGraph
-from utils.graph.entities import GraphEdge, GraphNode
+from utils.graph.entities import GraphEdge, GraphNode, StaticActuator
 
 
 class TestPedestrianMovement(unittest.TestCase):
@@ -375,6 +376,111 @@ class TestPedestrianMovement(unittest.TestCase):
                         self.graph,
                         dt=1.0,
                     )
+
+class TestSignalWaiting(unittest.TestCase):
+    """Regression coverage for time budgeting and persistent signal countdowns."""
+
+    def setUp(self):
+        TestPedestrianMovement.setUp(self)
+        self.pedestrian.walking_speed_mps = 1.0
+
+    def signal(self, name="S1", node="B", edges=("E1", "E2"), wait=10):
+        return StaticActuator(name, "traffic_signal", node, 0, 0,
+                              controlled_edges=edges, min_wait_time_s=0,
+                              max_wait_time_s=90, default_wait_time_s=30,
+                              properties={"status": "on", "wait_time_s": wait})
+
+    def with_signals(self, *signals):
+        return replace(self.graph, actuators={s.actuator_id: s for s in signals})
+
+    # Inherited movement tests assume 1.4 m/s; do not re-run them at 1 m/s.
+
+    def test_partial_wait_and_controller_change(self):
+        graph = self.with_signals(self.signal())
+        move_pedestrian(self.pedestrian, graph, 105)
+        self.assertEqual(self.pedestrian.state, PedestrianState.WAITING)
+        self.assertEqual(self.pedestrian.position_m, 0)
+        self.assertEqual(self.pedestrian.signal_wait_remaining_sec, 5)
+        self.assertEqual(self.pedestrian.total_wait_time_sec, 5)
+        self.assertEqual(self.pedestrian.total_travel_time_sec, 100)
+        changed = self.with_signals(self.signal(wait=30))
+        move_pedestrian(self.pedestrian, changed, 10)
+        self.assertEqual(self.pedestrian.position_m, 5)
+        self.assertEqual(self.pedestrian.total_wait_time_sec, 10)
+        self.assertEqual(self.pedestrian.state, PedestrianState.WALKING)
+        self.assertEqual(self.pedestrian.waiting_signal_ids, ())
+
+    def test_exact_release_does_not_wait_twice(self):
+        graph = self.with_signals(self.signal())
+        move_pedestrian(self.pedestrian, graph, 110)
+        self.assertEqual(self.pedestrian.state, PedestrianState.WALKING)
+        self.assertEqual(self.pedestrian.position_m, 0)
+        move_pedestrian(self.pedestrian, graph, 1)
+        self.assertEqual(self.pedestrian.position_m, 1)
+        self.assertEqual(self.pedestrian.total_wait_time_sec, 10)
+
+    def test_arrival_counts_only_used_time(self):
+        move_pedestrian(self.pedestrian, self.with_signals(self.signal()), 200)
+        self.assertEqual(self.pedestrian.state, PedestrianState.ARRIVED)
+        self.assertEqual(self.pedestrian.total_travel_time_sec, 150)
+        self.assertEqual(self.pedestrian.total_wait_time_sec, 10)
+
+    def test_small_steps_equal_one_large_step(self):
+        graph = self.with_signals(self.signal())
+        small = replace(self.pedestrian, route=list(self.pedestrian.route))
+        move_pedestrian(self.pedestrian, graph, 160)
+        for _ in range(160):
+            move_pedestrian(small, graph, 1)
+        self.assertEqual(small, self.pedestrian)
+
+    def test_reverse_crossing(self):
+        agent = replace(self.pedestrian, origin="C", destination="A", route=["C", "B", "A"])
+        move_pedestrian(agent, self.with_signals(self.signal()), 200)
+        self.assertEqual(agent.total_wait_time_sec, 10)
+        self.assertEqual(agent.state, PedestrianState.ARRIVED)
+
+    def test_only_controlled_departures_wait(self):
+        graph = self.with_signals(self.signal(edges=("E1",)))
+        move_pedestrian(self.pedestrian, graph, 200)
+        self.assertEqual(self.pedestrian.total_wait_time_sec, 0)
+
+    def test_origin_signal_and_zero_step(self):
+        graph = self.with_signals(self.signal(node="A", edges=("E1",), wait=30))
+        before = replace(self.pedestrian, route=list(self.pedestrian.route))
+        move_pedestrian(self.pedestrian, graph, 0)
+        self.assertEqual(self.pedestrian, before)
+        move_pedestrian(self.pedestrian, graph, 10)
+        self.assertEqual(self.pedestrian.signal_wait_remaining_sec, 20)
+        self.assertEqual(self.pedestrian.total_travel_time_sec, 0)
+        move_pedestrian(self.pedestrian, graph, 22)
+        self.assertEqual(self.pedestrian.position_m, 2)
+
+    def test_destination_has_no_departure_wait(self):
+        move_pedestrian(self.pedestrian, self.with_signals(self.signal(node="C")), 200)
+        self.assertEqual(self.pedestrian.total_wait_time_sec, 0)
+
+    def test_overlapping_signals_use_max_and_next_node_adds_wait(self):
+        graph = self.with_signals(self.signal("S1", "A", ("E1",), 10),
+                                  self.signal("S2", "B", ("E1", "E2"), 10),
+                                  self.signal("S3", "B", ("E1", "E2"), 30))
+        move_pedestrian(self.pedestrian, graph, 200)
+        self.assertEqual(self.pedestrian.total_wait_time_sec, 40)
+        self.assertEqual(self.pedestrian.state, PedestrianState.ARRIVED)
+
+    def test_revisiting_signal_waits_once_per_visit(self):
+        agent = replace(self.pedestrian, route=["A", "B", "A", "B", "C"])
+        move_pedestrian(agent, self.with_signals(self.signal()), 500)
+        self.assertEqual(agent.total_wait_time_sec, 20)
+        self.assertEqual(agent.total_travel_time_sec, 350)
+
+    def test_invalid_wait_rejected_before_movement(self):
+        for wait in (-1, float("nan"), float("inf"), True, None):
+            with self.subTest(wait=wait):
+                before = replace(self.pedestrian, route=list(self.pedestrian.route))
+                with self.assertRaises(ValueError):
+                    move_pedestrian(self.pedestrian, self.with_signals(self.signal(wait=wait)), 200)
+                self.assertEqual(self.pedestrian, before)
+
 
 if __name__ == "__main__":
     unittest.main()

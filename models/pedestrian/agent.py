@@ -12,7 +12,7 @@ movement logic, route progression, and simulation updates are handled
 by separate components.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 
 class PedestrianState(str, Enum):
@@ -40,3 +40,8 @@ class Pedestrian:
 
     total_travel_time_sec: float = 0.0
     total_wait_time_sec: float = 0.0
+
+    # Capture one controller delay per controlled departure, across timesteps.
+    signal_wait_remaining_sec: float = 0.0
+    signal_wait_edge_index: int | None = None
+    waiting_signal_ids: tuple[str, ...] = ()

@@ -1,0 +1,162 @@
+{
+  "actuators": [
+    {
+      "actuator_id": "SIM_M1",
+      "actuator_type": "misting_point",
+      "position": {
+        "anchor_node": "U000237",
+        "x_m": 798.745671781071,
+        "y_m": 360.1425625262782
+      },
+      "parameters": {
+        "max_heat_reduction_f": 5.4
+      },
+      "edge_relationships": [],
+      "description": "Hypothetical experiment mister at Leavey Library; not a surveyed installation"
+    },
+    {
+      "actuator_id": "SIM_M2",
+      "actuator_type": "misting_point",
+      "position": {
+        "anchor_node": "U000270",
+        "x_m": 199.19833762280177,
+        "y_m": 306.6084691383876
+      },
+      "parameters": {
+        "max_heat_reduction_f": 5.4
+      },
+      "edge_relationships": [],
+      "description": "Hypothetical experiment mister at Seeley G. Mudd Building; not a surveyed installation"
+    },
+    {
+      "actuator_id": "SIM_S1",
+      "actuator_type": "traffic_signal",
+      "position": {
+        "anchor_node": "U000013",
+        "x_m": 384.2471331561683,
+        "y_m": 605.9696124829352
+      },
+      "parameters": {
+        "default_wait_time_s": 30,
+        "min_wait_time_s": 10,
+        "max_wait_time_s": 90
+      },
+      "edge_relationships": [
+        {
+          "edge_id": "OSM0009_009",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0010_007",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0011_006",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0041_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0042_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0043_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0044_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0045_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0046_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0047_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0048_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0049_001",
+          "relationship": "controls"
+        }
+      ],
+      "description": "Hypothetical experiment signal at a high-degree intersection; not a surveyed installation"
+    },
+    {
+      "actuator_id": "SIM_S2",
+      "actuator_type": "traffic_signal",
+      "position": {
+        "anchor_node": "U000040",
+        "x_m": 177.01001318905037,
+        "y_m": 284.4996936302632
+      },
+      "parameters": {
+        "default_wait_time_s": 30,
+        "min_wait_time_s": 10,
+        "max_wait_time_s": 90
+      },
+      "edge_relationships": [
+        {
+          "edge_id": "OSM0020_006",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0021_004",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0109_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0110_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0111_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0112_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0113_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0114_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0115_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0116_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0117_001",
+          "relationship": "controls"
+        },
+        {
+          "edge_id": "OSM0118_001",
+          "relationship": "controls"
+        }
+      ],
+      "description": "Hypothetical experiment signal at a high-degree intersection; not a surveyed installation"
+    }
+  ]
+}

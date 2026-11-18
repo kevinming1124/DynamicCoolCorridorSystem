@@ -10,12 +10,12 @@ safe way to extend the project.
 - Third-party dependencies: `pythermalcomfort` (see `requirements.txt`)
 - Dependency management: `requirements.txt`
 - Initialization: Environment -> Heat Exposure, once per simulation
-- Round stages: Control -> Environment -> Heat Exposure -> Pedestrian (`--rounds`, default 1)
-- One persistent pedestrian simulator; optional externally assigned routes via `--routes`
+- Round stages: Control -> Environment -> Heat Exposure -> Routing -> Pedestrian (`--rounds`, default 1)
+- One persistent simulator and routingc stage; trip requests via `--trips` or legacy `--routes` endpoints
 - Pedestrian timestep: `--pedestrian-dt`, default one second per round
 - Environment time and scenario stay fixed; pedestrian elapsed seconds advance separately
 - Each round receives the previous round's graph; an advancing shared clock is deferred
-- Default dataset: `campus_50`; `tiny_campus_block` remains available
+- Default dataset: `usc_osm_trimmed` (real OSM geometry, assumed simulation inputs); legacy datasets remain available
 - Coordinates: local `x_m` and `y_m` values in meters
 - Legacy shared unit tests were removed; this branch retains its existing pedestrian tests
 
@@ -298,8 +298,8 @@ When adding a third-party runtime dependency:
 ## Known limitations and next decisions
 
 - Initialization and rounds register the real environment, heat, control, and pedestrian stages.
-- Route optimization is external; see `models/pedestrian/README.md` for route assignment and input format.
-- Signal waits, dynamic rerouting, forecast metadata, and verification integration are deferred.
+- Routingc runs before Pedestrian; see `models/routing/README.md` for the heat adapter, trip contract and limitations.
+- Pedestrians execute signal waits at controlled departures; dynamic rerouting, forecast metadata and verification integration remain deferred.
 - There is no persisted pipeline state loader.
 - Pipeline ordering is maintained manually in `build_pipeline()`.
 - The pipeline validates reported outputs but does not preflight input-property dependencies before execution.
@@ -337,18 +337,45 @@ When asking GPT to create a model, also specify:
 - Where it belongs in pipeline order.
 
 
-## Pedestrian integration
+## Routing / pedestrian integration
 
-`PedestrianSimulator.assign_route` accepts externally calculated ordered node
-IDs. It creates agents or replaces routes before departure, validating them
-without partially changing state. The runner may load the same assignments
-from `--routes`; no route optimizer or demand generator is introduced.
+Read models/routing/README.md and dataset/usc_osm_trimmed/README.md. Routingc's
+unchanged search/cost functions now live in prototypes/osm_campus/routing_core.py;
+both prototype and pipeline import them. The pipeline graph view supplies those
+functions with heat-derived walkability, not the prototype's placeholder values.
+No OSMnx is required at runtime and no STREL is registered.
 
-`run_simulation(..., pedestrians=simulator)` reuses the supplied instance across
-rounds; otherwise it creates an empty one. Do not reconstruct the simulator in
-the round loop. `build_pipeline(simulator)` registers it after Heat Exposure.
-The final `ModelOutput` reports complete edge `pedestrian_count` and contains
-individual snapshots in diagnostics, with all earlier graph properties retained.
+build_pipeline registers Routing immediately before the persistent simulator.
+Routing calls assign_route for pending requests once and retains unmatched
+requests for later retries. Pedestrian reports complete edge pedestrian_count
+and per-agent diagnostic snapshots. IDs/progress persist; do not reconstruct
+the simulator or router in the round loop. Routing is a model-specific handoff
+to the existing simulator; shared graph/contracts remain in utils.
 
-The existing environment clock remains fixed; do not interpret `--rounds` as
-30-minute time advancement. `--pedestrian-dt` controls movement seconds only.
+The real USC graph preserves every source walkway, splitting geometry into
+unique node chains to avoid ambiguous parallel node routes. Its own building
+lookup and shade schedule are selected by main.py. Shade, weather, infrastructure
+and accessibility assumptions must be disclosed; they are not surveyed data.
+
+--trips accepts origins/destinations and preference. In main.py, legacy --routes
+is interpreted as demand endpoints and recomputed; direct simulator fixed-route
+APIs are unchanged. See the routing README for matching dataset commands.
+
+Environment time remains fixed; --pedestrian-dt controls movement seconds only.
+Signal waits now execute at controlled departures. No midtrip rerouting,
+personal heat history or pedestrian-demand control has been added.
+
+## Persistent signal countdowns
+
+Pedestrian movement samples the latest traffic-signal wait_time_s before leaving
+its anchor on a controlled edge. Countdown fields in agent.py persist across
+rounds, and same-timestep time left after release is used for walking.
+WAITING without a countdown still means an externally paused agent. Walking
+time keeps its original meaning; waiting is separate, with derived elapsed
+time exposed in snapshots. Never reconstruct or reroute an agent after its
+wait begins. Routing cost/estimates currently exclude signal delay.
+
+See models/pedestrian/README.md for explicit assumptions and run
+models/routing/example_signal_trips.json to exercise a real-map signal. Extend
+the existing pedestrian tests for this behavior; no removed shared suite was
+reintroduced. Signal positions remain hypothetical.
