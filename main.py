@@ -11,6 +11,7 @@ from models.control import ControlModel
 from models.environment import EnvironmentModel
 from models.heat_exposure import HeatExposureModel
 from models.pedestrian.model import PedestrianSimulator
+from models.routing import RoutingModel
 from utils import CampusGraph, ModelInput, ModelOutput, load_campus_graph
 
 
@@ -34,10 +35,15 @@ def build_initialization_pipeline() -> list[PipelineStage]:
 
 
 def build_pipeline(pedestrians: PedestrianSimulator) -> list[PipelineStage]:
-    """Create one round, reusing the supplied pedestrian simulator."""
+    """Create one round, reusing the supplied pedestrian simulator.
+
+    Routing plans this round's trips from the fresh heat values and hands them
+    to the pedestrian simulator, which then moves everyone.
+    """
     return [
         ControlModel.from_config(),
         *build_initialization_pipeline(),
+        RoutingModel.from_config(simulator=pedestrians),
         pedestrians,
     ]
 
@@ -96,7 +102,7 @@ def run_simulation(
     for round_number in range(1, rounds + 1):
         print(
             f"Round {round_number}/{rounds}: "
-            "Control -> Environment -> Heat Exposure -> Pedestrian"
+            "Control -> Environment -> Heat Exposure -> Routing -> Pedestrian"
         )
         output = run_pipeline(
             graph=output.graph,

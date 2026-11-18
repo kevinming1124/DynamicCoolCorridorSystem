@@ -10,7 +10,7 @@ safe way to extend the project.
 - Third-party dependencies: `pythermalcomfort` (see `requirements.txt`)
 - Dependency management: `requirements.txt`
 - Initialization: Environment -> Heat Exposure, once per simulation
-- Round stages: Control -> Environment -> Heat Exposure -> Pedestrian (`--rounds`, default 1)
+- Round stages: Control -> Environment -> Heat Exposure -> Routing -> Pedestrian (`--rounds`, default 1)
 - One persistent pedestrian simulator; optional externally assigned routes via `--routes`
 - Pedestrian timestep: `--pedestrian-dt`, default one second per round
 - Environment time and scenario stay fixed; pedestrian elapsed seconds advance separately
@@ -25,6 +25,7 @@ Run these smoke checks after making changes:
 python -m pip install -r requirements.txt
 python main.py
 python -m models._template.model
+python -m models.routing.model
 python -m compileall -q main.py utils models
 ```
 
@@ -52,10 +53,11 @@ DynamicCoolCorridorSystem/
 │   └── pipeline/
 │       └── contracts.py            # ModelInput and ModelOutput
 ├── models/
-│   └── _template/
-│       ├── model.py                # Copyable model implementation
-│       ├── config.json             # Human-editable settings
-│       └── README.md               # Model creation guide
+│   ├── _template/
+│   │   ├── model.py                # Copyable model implementation
+│   │   ├── config.json             # Human-editable settings
+│   │   └── README.md               # Model creation guide
+│   └── routing/                    # Plans routes, feeds the pedestrian simulator (see its README)
 ├── dataset/
 │   └── tiny_campus_block/
 │       ├── dataset.json             # Dataset manifest and metadata
@@ -298,7 +300,7 @@ When adding a third-party runtime dependency:
 ## Known limitations and next decisions
 
 - Initialization and rounds register the real environment, heat, control, and pedestrian stages.
-- Route optimization is external; see `models/pedestrian/README.md` for route assignment and input format.
+- Route optimization is `models/routing`, which assigns routes to the pedestrian simulator each round; `--routes` files can still add pedestrians.
 - Signal waits, dynamic rerouting, forecast metadata, and verification integration are deferred.
 - There is no persisted pipeline state loader.
 - Pipeline ordering is maintained manually in `build_pipeline()`.

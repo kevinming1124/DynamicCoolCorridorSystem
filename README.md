@@ -29,6 +29,8 @@ introduced by the code.
         - pipeline/ (shared model input and output contracts)
     - models/
         - _template/ (copyable, human-editable model starter)
+        - routing/ (comfort-vs-speed walking routes, fed to the pedestrian simulator;
+          see [its README](models/routing/README.md))
     - dataset/
         - tiny_campus_block/ (9-node fictional test graph)
     - main.py
@@ -62,7 +64,7 @@ python main.py --debug-dir debug
 
 The dataset is loaded once. Initialization runs Environment -> Heat Exposure
 to supply the controller's inputs. Each round then runs Control -> Environment
--> Heat Exposure -> Pedestrian, carrying the updated graph into the next round.
+-> Heat Exposure -> Routing -> Pedestrian, carrying the updated graph into the next round.
 One pedestrian simulator is reused for every round. By default,
 one round runs after initialization. Choose a positive number of rounds:
 
@@ -100,7 +102,8 @@ Supply externally calculated node routes using the documented JSON format in
 python main.py --routes models/pedestrian/example_routes.json --rounds 5 --pedestrian-dt 1
 ```
 
-Without `--routes`, the pedestrian population is empty. Routes are assigned
-before movement; no route optimizer is included. Each round advances pedestrian
+Without `--routes`, the routing model still adds pedestrians: each round it
+plans new trips from the latest heat values and assigns their routes before
+movement (see [`models/routing/README.md`](models/routing/README.md)). Each round advances pedestrian
 elapsed time by `--pedestrian-dt` seconds while environmental time stays fixed.
 Signal waits and heat do not yet change pedestrian movement.

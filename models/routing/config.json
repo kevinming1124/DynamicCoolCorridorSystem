@@ -1,0 +1,35 @@
+{
+  "model_name": "routing_model",
+  "description": "Plans comfort-vs-speed walking routes from heat exposure, signal waits, and closed walkways.",
+  "enabled": true,
+  "property_target": "edge",
+  "output_properties": [
+    "blocked",
+    "planned_pedestrians"
+  ],
+  "input_properties": [
+    "heat_exposure_rate",
+    "unsafe_heat"
+  ],
+  "parameters": {
+    "comfort_weight_k": 4.0,
+    "discomfort_scale_c": 20.0,
+    "unsafe_penalty_min": 0.0,
+    "random_trips": 10,
+    "seed": 42,
+    "forecast_noise_c_per_hour": 2.0
+  },
+  "metadata": {
+    "heat_source": "pipeline",
+    "assign_to_simulator": true,
+    "forecast_mode": "current",
+    "discomfort_mode": "absolute",
+    "blocked_edges": [],
+    "demo_trips": [
+      {"start": "Leavey Library", "destination": "Seeley G. Mudd Building", "preference": 0.0},
+      {"start": "Leavey Library", "destination": "Seeley G. Mudd Building", "preference": 1.0},
+      {"start": "USC Village", "destination": "Expo Park/USC Metro Station", "preference": 0.0},
+      {"start": "USC Village", "destination": "Expo Park/USC Metro Station", "preference": 1.0}
+    ]
+  }
+}
