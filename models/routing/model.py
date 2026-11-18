@@ -58,7 +58,6 @@ class RoutingSettings:
     comfort_weight_k: float
     discomfort_scale_c: float
     unsafe_penalty_min: float
-    walk_speed_mps: float
     random_trips: int
     seed: int
     forecast_noise_c_per_hour: float
@@ -106,7 +105,6 @@ class RoutingSettings:
             comfort_weight_k=float(params["comfort_weight_k"]),
             discomfort_scale_c=float(params["discomfort_scale_c"]),
             unsafe_penalty_min=float(params["unsafe_penalty_min"]),
-            walk_speed_mps=float(params["walk_speed_mps"]),
             random_trips=int(params["random_trips"]),
             seed=int(params["seed"]),
             forecast_noise_c_per_hour=float(params["forecast_noise_c_per_hour"]),
@@ -122,8 +120,8 @@ class RoutingSettings:
     def _check_numbers(self) -> None:
         if self.comfort_weight_k < 0 or self.unsafe_penalty_min < 0:
             raise ValueError("comfort_weight_k and unsafe_penalty_min must be >= 0")
-        if self.discomfort_scale_c <= 0 or self.walk_speed_mps <= 0:
-            raise ValueError("discomfort_scale_c and walk_speed_mps must be > 0")
+        if self.discomfort_scale_c <= 0:
+            raise ValueError("discomfort_scale_c must be > 0")
         if self.random_trips < 0 or self.forecast_noise_c_per_hour < 0:
             raise ValueError("random_trips and forecast_noise_c_per_hour must be >= 0")
         for trip in self.demo_trips:
@@ -310,7 +308,14 @@ class RoutingModel:
 
         planned: list[PlannedRoute] = []
         unreachable: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        known = set(planner.named_places()) | set(graph.nodes)
         for trip in trips:
+            # demo_trips name campus_50 places. On another dataset (e.g.
+            # tiny_campus_block) those places don't exist: skip, don't crash.
+            if trip["start"] not in known or trip["destination"] not in known:
+                skipped.append(dict(trip))
+                continue
             result = planner.route(trip["start"], trip["destination"], float(trip["preference"]))
             if result is None:
                 unreachable.append(dict(trip))
@@ -331,6 +336,8 @@ class RoutingModel:
         rates = [planner.heat.rate(e) for e in planner.edges]
         effect = comfort_effect(planner)
         _print_summary(planned, unreachable, rates, effect, planner.heat.is_placeholder)
+        if skipped:
+            print(f"  (skipped {len(skipped)} demo trip(s) naming places not in this dataset)")
 
         return ModelOutput(
             model_name=self.settings.model_name,
@@ -347,6 +354,7 @@ class RoutingModel:
                 "blocked_edges": sorted(planner.blocked),
                 "routes": [p.as_dict() for p in planned],
                 "unreachable_trips": unreachable,
+                "skipped_trips": skipped,
             },
         )
 

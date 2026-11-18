@@ -29,6 +29,8 @@ introduced by the code.
         - pipeline/ (shared model input and output contracts)
     - models/
         - _template/ (copyable, human-editable model starter)
+        - routing/ (comfort-vs-speed walking routes and pedestrian simulation;
+          see [its README](models/routing/README.md))
     - dataset/
         - tiny_campus_block/ (9-node fictional test graph)
     - main.py
@@ -62,7 +64,7 @@ python main.py --debug-dir debug
 
 The dataset is loaded once. Initialization runs Environment -> Heat Exposure
 to supply the controller's inputs. Each round then runs Control -> Environment
--> Heat Exposure, carrying the updated graph into the next round. By default,
+-> Heat Exposure -> Routing, carrying the updated graph into the next round. By default,
 one round runs after initialization. Choose a positive number of rounds:
 
 ```powershell

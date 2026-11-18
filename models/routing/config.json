@@ -15,7 +15,6 @@
     "comfort_weight_k": 4.0,
     "discomfort_scale_c": 20.0,
     "unsafe_penalty_min": 0.0,
-    "walk_speed_mps": 1.4,
     "random_trips": 10,
     "seed": 42,
     "forecast_noise_c_per_hour": 2.0

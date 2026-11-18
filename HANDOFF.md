@@ -10,7 +10,7 @@ safe way to extend the project.
 - Third-party dependencies: `pythermalcomfort` (see `requirements.txt`)
 - Dependency management: `requirements.txt`
 - Initialization: Environment -> Heat Exposure, once per simulation
-- Round stages: Control -> Environment -> Heat Exposure (`--rounds`, default 1)
+- Round stages: Control -> Environment -> Heat Exposure -> Routing (`--rounds`, default 1)
 - Time and scenario stay fixed; each round receives the previous round's graph
 - Default dataset: `campus_50`; `tiny_campus_block` remains available
 - Coordinates: local `x_m` and `y_m` values in meters
@@ -22,6 +22,7 @@ Run these smoke checks after making changes:
 python -m pip install -r requirements.txt
 python main.py
 python -m models._template.model
+python -m models.routing.model
 python -m compileall -q main.py utils models
 ```
 
@@ -49,10 +50,11 @@ DynamicCoolCorridorSystem/
 │   └── pipeline/
 │       └── contracts.py            # ModelInput and ModelOutput
 ├── models/
-│   └── _template/
-│       ├── model.py                # Copyable model implementation
-│       ├── config.json             # Human-editable settings
-│       └── README.md               # Model creation guide
+│   ├── _template/
+│   │   ├── model.py                # Copyable model implementation
+│   │   ├── config.json             # Human-editable settings
+│   │   └── README.md               # Model creation guide
+│   └── routing/                    # Routes + pedestrian simulation (see its README)
 ├── dataset/
 │   └── tiny_campus_block/
 │       ├── dataset.json             # Dataset manifest and metadata
