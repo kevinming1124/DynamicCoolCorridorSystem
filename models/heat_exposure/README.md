@@ -31,8 +31,27 @@ From the repository root:
 ```powershell
 python -m pip install -r requirements.txt
 python -m models.heat_exposure.model
-python main.py --dataset dataset/campus_50 --time 13:00 --scenario hot
+python -m models.heat_exposure.model --time 08:00 --scenario mild
+python -m models.heat_exposure.model --time 13:00 --mister-on SIM_M1 SIM_M2
+python -m models.heat_exposure.model --save debug/heat_1300.json
+python main.py --dataset dataset/usc_osm_trimmed --time 13:00 --scenario hot
 ```
 
-Use `--debug-dir debug` with `main.py` to save the environment and heat-stage
-outputs for inspection.
+The standalone run defaults to `dataset/usc_osm_trimmed`, 13:00, and the `hot`
+scenario. It runs Environment first, passing the selected dataset folder so
+USC's generated shade uses one profile per original walkway. The summary reports
+minimum, average, and maximum heat values across all 930 segments.
+
+Use `--dataset dataset/campus_50` or another compatible dataset to override the
+map. Mister IDs must belong to the selected dataset and identify misting points;
+USC uses `SIM_M1` and `SIM_M2`. Without `--mister-on`, loaded actuator states are
+preserved. `--save` writes the full heat output, including environmental edge
+properties and diagnostics recording the dataset, time, scenario, active
+misters, and shade source. Use `--debug-dir debug` with `main.py` to save each
+pipeline stage separately.
+
+Heat calculations and thresholds are identical to the pipeline. More shade
+reduces absorbed sunlight and the estimated radiant temperature under otherwise
+identical conditions. Walking exposure scales with each segment's walking time;
+sum it across a route to obtain total walking exposure. Signal waiting is
+handled downstream.
