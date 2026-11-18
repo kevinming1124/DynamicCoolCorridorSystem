@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import math
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from utils import ModelInput, ModelOutput
@@ -13,6 +13,9 @@ from .checks import CODES, FAIL, INCONCLUSIVE, NA, PASS, RouteNetwork, aggregate
 from .strel_adapter import RouteSafetyMonitor
 
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.json")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_DATASET_PATH = PROJECT_ROOT / "dataset" / "usc_osm_trimmed"
+DEFAULT_TRIPS_PATH = PROJECT_ROOT / "models" / "routing" / "example_signal_trips.json"
 OUTPUTS = ("verification_route_selection_valid", "verification_bounded_arrival_valid",
            "verification_fallback_valid", "verification_actuator_response_valid",
            "verification_overall_valid")
@@ -190,18 +193,80 @@ class VerificationModel:
         return output
 
 
-def run_demo():
-    """Run actual upstream models on the tiny map; no demo input injection."""
-    from main import PROJECT_ROOT, run_simulation
-    from models.routing import TripRequest
+def run_demo(
+    dataset: str | Path = DEFAULT_DATASET_PATH,
+    trips: str | Path = DEFAULT_TRIPS_PATH,
+    time: str = "13:00",
+    scenario: str = "hot",
+    rounds: int = 3,
+    pedestrian_dt: float = 30.0,
+    misting_count: int | None = 4,
+) -> ModelOutput:
+    """Audit real upstream stages on USC, including movement across a signal."""
+    from main import run_simulation
+    from models.environment import EnvironmentModel
+    from models.routing import load_trip_requests
     from utils import load_campus_graph
-    dataset = PROJECT_ROOT / "dataset" / "tiny_campus_block"
-    return run_simulation(load_campus_graph(dataset), rounds=2,
-                          dataset_directory=dataset,
-                          trip_requests=(TripRequest(1, "N01", "N09"),),
-                          context={"pedestrian_dt_sec": 30.0})
+    from utils.graph.misting_scenarios import apply_misting_scenario
+
+    number(pedestrian_dt, "pedestrian_dt", minimum=0)
+    dataset = Path(dataset)
+    graph = load_campus_graph(dataset)
+    context = {"time": time, "scenario": scenario, "pedestrian_dt_sec": pedestrian_dt}
+    if misting_count is not None:
+        radius = EnvironmentModel.from_config().config.parameters["mist_range_m"]
+        graph, layout = apply_misting_scenario(graph, dataset, misting_count, radius)
+        context["misting_scenario"] = layout
+    result = run_simulation(graph, rounds=rounds, dataset_directory=dataset,
+                            trip_requests=load_trip_requests(trips), context=context)
+    return replace(result, diagnostics={
+        **result.diagnostics,
+        "demo": {"dataset_dir": str(dataset), "trips_file": str(trips),
+                 "time": time, "scenario": scenario, "rounds": rounds,
+                 "pedestrian_dt_sec": pedestrian_dt,
+                 "misting_count": sum(a.actuator_type == "misting_point" for a in graph.actuators.values()),
+                 "misting_layout": "base" if misting_count is None else misting_count},
+    })
+
+
+def main(argv=None) -> ModelOutput:
+    import argparse
+    from utils.graph.misting_scenarios import MISTING_COUNTS
+
+    parser = argparse.ArgumentParser(description="Audit the full pipeline on USC with signal-crossing trips.")
+    parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET_PATH)
+    parser.add_argument("--trips", type=Path, default=DEFAULT_TRIPS_PATH)
+    parser.add_argument("--time", default="13:00")
+    parser.add_argument("--scenario", default="hot")
+    parser.add_argument("--rounds", type=int, default=3)
+    parser.add_argument("--pedestrian-dt", type=float, default=30.0, help="Simulated seconds per round")
+    parser.add_argument("--misting-count", choices=[str(n) for n in MISTING_COUNTS] + ["base"], default="4")
+    parser.add_argument("--save", type=Path, help="Save final graph and detailed audit with round history as JSON")
+    arguments = parser.parse_args(argv)
+    try:
+        result = run_demo(arguments.dataset, arguments.trips, arguments.time, arguments.scenario,
+                          arguments.rounds, arguments.pedestrian_dt,
+                          None if arguments.misting_count == "base" else int(arguments.misting_count))
+        audit = result.diagnostics["verification"]
+        print(f"Audit completed: dataset {arguments.dataset}; "
+              f"misters {result.diagnostics['demo']['misting_count']}; "
+              f"{arguments.time}, scenario '{arguments.scenario}'")
+        for record in audit["round_history"]:
+            print(f"Round {record['round']}: {record['status']}; "
+                  f"route selection {record['route_selection_status']}; "
+                  f"arrival bound {record['bounded_arrival_status']}; "
+                  f"actuators {record['actuator_response_status']}")
+        print(f"Simulation audit: {audit['simulation_status']}")
+        print(f"Pedestrians: {result.diagnostics['pedestrian_state']['summary']}")
+        if arguments.save:
+            print(f"Saved to {result.save_json(arguments.save)}")
+    except Exception as exc:
+        parser.exit(2, f"Verification execution error: {exc}\n")
+    if audit["simulation_status"] == FAIL:
+        print("Audit detected a requirement violation; execution completed successfully.")
+        raise SystemExit(1)
+    return result
 
 
 if __name__ == "__main__":
-    result = run_demo()
-    print(json.dumps(result.diagnostics["verification"], indent=2))
+    main()
