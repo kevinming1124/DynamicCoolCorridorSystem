@@ -131,8 +131,8 @@ the audited policy; enforcing compliance is a subsequent routing change.
 ```powershell
 python main.py --debug-dir debug/verification
 python main.py --trips models/routing/example_signal_trips.json --rounds 3 --pedestrian-dt 60 --debug-dir debug/verification-signals
-python -m unittest models.verification.test_model
-python -m unittest discover -s models/pedestrian/tests -v
+python -m unittest tests.verification.test_model
+python -m unittest discover -s tests -t . -v
 python -m compileall -q main.py utils models
 ```
 
@@ -148,7 +148,8 @@ verification file contains the current detailed audit, compact round history,
 and pedestrian state. A detected policy violation is an audit result; the
 verifier reports it without changing routes or commands.
 
-Tests obtain evidence directly from the USC pipeline and deliberately corrupt
+Tests live in `tests/verification`; see [the test coverage guide](../../tests/README.md).
+They obtain evidence directly from the USC pipeline and deliberately corrupt
 selected inputs to confirm detection of incorrect cooling, inconsistent waiting,
 unsafe route selection when a safe alternative exists, and missing evidence.
 They also check that graphs, commands, and evidence remain unchanged and that

@@ -20,7 +20,7 @@ safe way to extend the project.
 - Optional `--misting-count 0|4|6|10` loads nested USC placements from `misting_scenarios.json` without copying the map; omission retains original actuators. Every stage records the explicit selection in `diagnostics.misting_scenario`.
 - Misting uses a 10 m radius and covered-length fraction times full cooling, without distance decay. Scenario startup validates anchors and rejects touching/overlapping circles.
 - Coordinates: local `x_m` and `y_m` values in meters
-- Legacy shared unit tests were removed; this branch retains its existing pedestrian tests
+- Automated model and graph utility tests live under `tests/`; see `tests/README.md` for coverage and known gaps
 
 Run these smoke checks after making changes:
 
@@ -28,7 +28,7 @@ Run these smoke checks after making changes:
 python -m pip install -r requirements.txt
 python main.py
 python -m models._template.model
-python -m unittest models.verification.test_model
+python -m unittest discover -s tests -t . -v
 python -m compileall -q main.py utils models
 ```
 

@@ -40,9 +40,10 @@ is retained for compatibility; it is not the USC demo's default.
 ## Tests
 
 ```sh
-python -m unittest discover -s models/pedestrian/tests
+python -m unittest discover -s tests/pedestrian -t .
 ```
 
+Tests live in `tests/pedestrian`; see [the test coverage guide](../../tests/README.md).
 Dataset integration tests use USC and derive expected movement from actual
 segment distances. They cover bidirectional movement, segment transitions,
 signal waiting across steps and command changes, arrival timing, occupancy,

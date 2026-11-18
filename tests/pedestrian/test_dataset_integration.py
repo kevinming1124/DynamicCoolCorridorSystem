@@ -13,7 +13,7 @@ from models.pedestrian.model import PedestrianSimulator
 from models.pedestrian.movement import get_edge_distance, get_route_edge
 from utils import ModelInput, load_campus_graph
 
-DATASET_PATH = Path(__file__).resolve().parents[3] / "dataset" / "usc_osm_trimmed"
+DATASET_PATH = Path(__file__).resolve().parents[2] / "dataset" / "usc_osm_trimmed"
 
 
 class TestDatasetIntegration(unittest.TestCase):

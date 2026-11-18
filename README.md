@@ -122,10 +122,10 @@ fallback by maximum exposure, cumulative exposure, then travel time. The 2.5x
 arrival bound is checked independently and never restricts route selection.
 All checks use current conditions; there is no heat prediction or forecast input.
 
-Run a tiny-map example with the real upstream models:
+Run automated USC audit checks using real upstream model evidence:
 
 ```powershell
-python -m unittest models.verification.test_model
+python -m unittest tests.verification.test_model
 ```
 
 Per-pedestrian results, actuator checks and round history are in
@@ -134,6 +134,19 @@ when debugging is enabled. Existing routing can fail these audit requirements;
 verification does not enforce them. See
 [`models/verification/README.md`](models/verification/README.md) for scope,
 input evidence, result codes and commands.
+
+## Automated tests
+
+All automated tests are organized under [`tests/`](tests/README.md). The coverage
+guide explains the behaviors checked, datasets, prerequisites, and known gaps.
+Run the full suite from the repository root:
+
+```powershell
+python -m unittest discover -s tests -t . -v
+```
+
+Standalone model demos remain available for inspecting outputs; automated tests
+run separately and do not run automatically during the pipeline or demos.
 
 ## Testing dataset
 
