@@ -11,7 +11,7 @@ safe way to extend the project.
 - Third-party dependencies: `pythermalcomfort`, `MoonLight 0.3.1` and its transitive dependencies
 - Dependency management: `requirements.txt`
 - Initialization: Environment -> Heat Exposure, once per simulation
-- Round stages: Control -> Environment -> Heat Exposure -> Routing -> Pedestrian (`--rounds`, default 1)
+- Round stages: Control -> Environment -> Heat Exposure -> Routing -> Pedestrian -> Verification (`--rounds`, default 1)
 - One persistent simulator and routingc stage; trip requests via `--trips` or legacy `--routes` endpoints
 - Pedestrian timestep: `--pedestrian-dt`, default one second per round
 - Environment time and scenario stay fixed; pedestrian elapsed seconds advance separately
@@ -65,7 +65,7 @@ DynamicCoolCorridorSystem/
 │       ├── strel_adapter.py        # Selected-route MoonLight adapter
 │       ├── formula.mls             # Spatial route-safety formulas
 │       ├── config.json             # Verification thresholds and outputs
-│       ├── mock_rounds.json        # Temporary upstream demonstration data
+│       ├── actuators.py            # Misting and signal/movement audit
 │       └── README.md               # Formal input and integration contract
 ├── dataset/
 │   └── tiny_campus_block/
@@ -169,10 +169,11 @@ non-empty strings, or `null`. A state-only model returns an updated graph with
 Properties exist in memory until the process ends. `save_json()` writes the full
 state for debugging, but the project does not currently reload a saved JSON state.
 
-`main.py` preserves supplied runtime context between stages. Diagnostics are
-not forwarded automatically. The final pedestrian output exposes individual
-snapshots as `diagnostics["pedestrian_state"]`; later consumers need an explicit
-context handoff. Complete edge counts travel automatically with the graph.
+`main.py` preserves supplied runtime context and builds a fresh
+`context["stage_diagnostics"]` mapping keyed by stage model name each pass.
+Before Pedestrian it captures `context["pedestrian_before_movement"]`.
+The final verifier preserves `diagnostics["pedestrian_state"]` and adds
+`diagnostics["verification"]`. Complete edge counts travel with the graph.
 
 ## Creating a model
 
@@ -311,11 +312,11 @@ When adding a third-party runtime dependency:
 
 - Initialization and rounds register the real environment, heat, control, and pedestrian stages.
 - Routingc runs before Pedestrian; see `models/routing/README.md` for the heat adapter, trip contract and limitations.
-- Pedestrians execute signal waits at controlled departures; dynamic rerouting, forecast metadata and verification integration remain deferred.
+- Pedestrians execute signal waits at controlled departures. Verification audits current conditions; dynamic rerouting and heat prediction are not implemented.
 - There is no persisted pipeline state loader.
 - Pipeline ordering is maintained manually in `build_pipeline()`.
 - The pipeline validates reported outputs but does not preflight input-property dependencies before execution.
-- Runtime context is preserved, but stage diagnostics require explicit handoff.
+- Runtime context includes same-pass stage diagnostics and a pre-movement snapshot for verification.
 - There is no packaging configuration or command-line installation entry point.
 - Use pipeline smoke runs and the existing pedestrian test suite for validation.
 
@@ -355,7 +356,7 @@ Read models/routing/README.md and dataset/usc_osm_trimmed/README.md. Routingc's
 unchanged search/cost functions now live in prototypes/osm_campus/routing_core.py;
 both prototype and pipeline import them. The pipeline graph view supplies those
 functions with heat-derived walkability, not the prototype's placeholder values.
-No OSMnx is required at runtime and no STREL is registered.
+No OSMnx is required at runtime. STREL is registered only in the final verification audit.
 
 build_pipeline registers Routing immediately before the persistent simulator.
 Routing calls assign_route for pending requests once and retains unmatched
@@ -376,6 +377,24 @@ APIs are unchanged. See the routing README for matching dataset commands.
 Environment time remains fixed; --pedestrian-dt controls movement seconds only.
 Signal waits now execute at controlled departures. No midtrip rerouting,
 personal heat history or pedestrian-demand control has been added.
+
+## Current-condition verification
+
+Verification is registered after Pedestrian. It is audit-only and uses no heat
+prediction or mock upstream values. If any available safe route exists, selection
+must be safe. Otherwise it must minimize maximum heat exposure rate, then
+time-weighted cumulative exposure, then travel time, with no hard heat ceiling.
+The 2.5x arrival bound is independent and never filters route candidates.
+
+The verifier audits pre-movement routes and post-movement remaining routes,
+including partial-edge progress and captured signal countdowns. It considers all
+resolved destination entrances and shares a committed current-edge prefix across
+comparisons. Efficient Dijkstra passes replace exhaustive simple-path search.
+Environment and Heat Exposure expose real same-round diagnostic evidence.
+Misting physics and signal/movement accounting are audited; reduction in thermal
+exposure attributable to misting is not claimed. Read the verifier README for
+input contracts, result codes, scope, and commands. Existing routing is unchanged
+and can legitimately fail the audit until its selection policy is extended.
 
 ## Persistent signal countdowns
 

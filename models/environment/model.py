@@ -226,6 +226,10 @@ class EnvironmentModel:
                 "scenario": self._state["scenario_name"],
                 "misters_on": sorted(self._state["misters_on_ids"]),
                 "edges_using_default_shade": self._state["default_shade_edges"],
+                "base_air_temp_f": self._state["base_air_temp_f"],
+                "base_humidity_pct": self._state["base_humidity_pct"],
+                "mist_range_m": self._parameter("mist_range_m"),
+                "mist_humidity_increase_pct": self._parameter("mist_humidity_increase_pct"),
             },
         )
 

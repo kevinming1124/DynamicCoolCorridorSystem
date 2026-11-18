@@ -1,9 +1,9 @@
 # Routingc pipeline stage
 
-The runner executes **Control → Environment → Heat Exposure → Routing → Pedestrian**.
+The runner executes **Control → Environment → Heat Exposure → Routing → Pedestrian → Verification**.
 Initialization still calculates Environment → Heat Exposure once before control.
 Routing and Pedestrian share one persistent simulator and the selected dataset.
-No STREL stage is registered.
+The final audit uses STREL for current selected-route safety.
 
 ## Run the real campus example
 
@@ -45,7 +45,9 @@ Diagnostics include new routes, cumulative assigned routes, pending IDs,
 distances, cost and estimated travel/exposure. Routing also calls
 `PedestrianSimulator.assign_route(id, ordered_node_ids, walking_speed_mps=...)`
 before that simulator's predict call. This explicit shared-instance handoff is
-necessary because pipeline diagnostics are not forwarded automatically.
+retained for route assignment. The runner also forwards same-pass stage
+diagnostics to the final verifier. Route records include all resolved destination
+entrances; pending records include resolved endpoints and speed.
 
 ## Same algorithm, explicit heat adapter
 
@@ -87,7 +89,13 @@ python main.py --dataset dataset/campus_50 --routes models/pedestrian/example_ro
 
 Direct calls to PedestrianSimulator.from_routes_file still assign fixed paths.
 
-## Remaining limitations
+## Verification policy and remaining limitations
+
+The final verifier checks safe-first selection, or the coolest fallback when no
+safe route exists, plus an independent 2.5x time bound. This router still uses its
+original comfort-weighted cost and does not enforce those requirements. Audit
+failures are reported without changing assignment or movement. No forecast
+inputs are used. See `models/verification/README.md`.
 
 Pedestrians now execute signal delays before controlled departures; see
 models/pedestrian/README.md and example_signal_trips.json. Routing cost,

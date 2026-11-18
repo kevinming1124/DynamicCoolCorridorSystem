@@ -15,6 +15,7 @@ from models.environment.model import ModelConfig as EnvironmentConfig
 from models.heat_exposure import HeatExposureModel
 from models.pedestrian.model import PedestrianSimulator
 from models.routing import RoutingModel, TripRequest, load_trip_requests
+from models.verification import VerificationModel
 from utils import CampusGraph, ModelInput, ModelOutput, load_campus_graph
 
 
@@ -55,7 +56,7 @@ def build_pipeline(pedestrians: PedestrianSimulator,
     return [ControlModel.from_config(),
             *build_initialization_pipeline(dataset_directory),
             RoutingModel.from_config(pedestrians, requests=trip_requests, buildings=buildings),
-            pedestrians]
+            pedestrians, VerificationModel.from_config()]
 
 
 def run_pipeline(
@@ -68,12 +69,16 @@ def run_pipeline(
     if not stages:
         raise ValueError("The pipeline must contain at least one model stage")
 
-    runtime_context = context or {}
+    # Evidence is scoped to this pass; never reuse a previous round's reports.
+    runtime_context = {**(context or {}), "stage_diagnostics": {}}
     model_input = ModelInput(graph=graph, context=runtime_context)
     final_output: ModelOutput | None = None
 
     for stage_number, stage in enumerate(stages, start=1):
+        if isinstance(stage, PedestrianSimulator):
+            runtime_context["pedestrian_before_movement"] = stage.get_state()
         final_output = stage.predict(model_input)
+        runtime_context["stage_diagnostics"][final_output.model_name] = final_output.diagnostics
         if debug_directory is not None:
             safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", final_output.model_name)
             debug_path = Path(debug_directory) / f"{stage_number:02d}_{safe_name}.json"
@@ -114,7 +119,7 @@ def run_simulation(
     for round_number in range(1, rounds + 1):
         print(
             f"Round {round_number}/{rounds}: "
-            "Control -> Environment -> Heat Exposure -> Routing -> Pedestrian"
+            "Control -> Environment -> Heat Exposure -> Routing -> Pedestrian -> Verification"
         )
         output = run_pipeline(
             graph=output.graph,
@@ -232,6 +237,12 @@ def main() -> None:
     )
     total_wait = sum(p["total_wait_time_sec"] for p in state["pedestrians"])
     print(f"Total pedestrian signal waiting: {total_wait:g} person-seconds")
+    verification = final_output.diagnostics["verification"]
+    print(f"Verification audit: {verification['status']}; "
+          f"simulation overall {verification['simulation_status']}; "
+          f"route selection {verification['route_selection_status']}; "
+          f"bounded arrival {verification['bounded_arrival_status']}; "
+          f"actuators {verification['actuator_response']['status']}")
     print("Final actuator states:")
     for actuator in final_output.graph.actuators.values():
         details = f"status={actuator.properties.get('status')}"

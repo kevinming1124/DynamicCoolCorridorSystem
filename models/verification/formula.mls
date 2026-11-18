@@ -1,20 +1,14 @@
 signal {
-    real predicted_exposure;
-    real exposure_threshold;
+    real current_safe;
     real is_destination;
 }
-
 space {
     edges {
         real route_hop;
     }
 }
-
 domain boolean;
-
-formula segment_safe =
-    predicted_exposure <= exposure_threshold;
-
+formula segment_safe = current_safe > 0.5;
 formula safe_to_destination =
     segment_safe reach(route_hop)[0, inf]
     ((is_destination > 0.5) & segment_safe);

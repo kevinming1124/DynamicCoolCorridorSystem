@@ -67,7 +67,7 @@ python main.py --debug-dir debug
 
 The dataset is loaded once. Initialization runs Environment -> Heat Exposure
 to supply the controller's inputs. Each round then runs Control -> Environment
--> Heat Exposure -> Routing -> Pedestrian, carrying the updated graph into the next round.
+-> Heat Exposure -> Routing -> Pedestrian -> Verification, carrying the updated graph into the next round.
 One pedestrian simulator is reused for every round. By default,
 one round runs after initialization. Choose a positive number of rounds:
 
@@ -86,21 +86,29 @@ and so on. The completion output lists final actuator states.
 `build_initialization_pipeline()` defines the initialization stages;
 `build_pipeline()` defines one round. `run_pipeline()` executes a single pass,
 and `run_simulation()` initializes and repeats the rounds. The final output is
-the pedestrian result, with environmental and heat properties retained on its graph. Each stage receives
+the verification audit, preserving pedestrian diagnostics and environmental/heat properties. Each stage receives
 the graph produced by the previous stage, including accumulated properties.
 
-## Requirements verification demonstration
+## Requirements verification audit
 
-Run the final verifier with explicit mock upstream values:
+Verification audits every round without changing routes, commands, or movement.
+It requires a safe route whenever one exists; otherwise it checks the coolest
+fallback by maximum exposure, cumulative exposure, then travel time. The 2.5x
+arrival bound is checked independently and never restricts route selection.
+All checks use current conditions; there is no heat prediction or forecast input.
+
+Run a tiny-map example with the real upstream models:
 
 ```powershell
 python -m models.verification.model
 ```
 
-It verifies a normal route, constrained fallback, saturation, and invalid
-actuator-locality scenarios. See
-[`models/verification/README.md`](models/verification/README.md) for the formal
-input contract and future pipeline placement.
+Per-pedestrian results, actuator checks and round history are in
+`diagnostics.verification`, saved as `round_001/06_requirements_verification.json`
+when debugging is enabled. Existing routing can fail these audit requirements;
+verification does not enforce them. See
+[`models/verification/README.md`](models/verification/README.md) for scope,
+input evidence, result codes and commands.
 
 ## Testing dataset
 
@@ -128,7 +136,8 @@ snapshots are in `05_pedestrian_simulation.json` each round.
 See [routing contract and limitations](models/routing/README.md) and
 [pedestrian state/movement](models/pedestrian/README.md). Routing reads the
 current Heat Exposure output, converts it to comfort weights, and uses
-routingc's shared search/cost functions. No STREL is included.
+routingc's shared search/cost functions. The final audit uses STREL for
+selected-route safety; routing itself remains unchanged.
 
 For old node-route examples, select their matching graph explicitly:
 

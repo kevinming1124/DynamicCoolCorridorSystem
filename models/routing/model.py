@@ -170,6 +170,7 @@ class RoutingModel:
         usage = {edge.edge_id: 0.0 for edge in graph.edges}
         edges_by_id = {edge.edge_id: edge for edge in graph.edges}
         plans, pending, unavailable, already_there = [], [], [], []
+        pending_details = []
         for request in self.pending:
             existing = candidate.pedestrians.get(request.pedestrian_id)
             if existing is not None and (
@@ -187,6 +188,9 @@ class RoutingModel:
             if route is None:
                 pending.append(request)
                 unavailable.append(request.pedestrian_id)
+                pending_details.append({"pedestrian_id": request.pedestrian_id,
+                                        "origin_node": start, "destination_nodes": targets,
+                                        "walking_speed_mps": request.walking_speed_mps})
                 if request.pedestrian_id in candidate.pedestrians:
                     candidate.pedestrians[request.pedestrian_id].state = PedestrianState.WAITING
                 continue
@@ -204,6 +208,7 @@ class RoutingModel:
             plans.append({"pedestrian_id": request.pedestrian_id,
                           "origin": request.origin, "destination": request.destination,
                           "preference": request.preference, "nodes": nodes, "edges": ids,
+                          "destination_nodes": targets,
                           "distance_m": distance, "weighted_cost_m": cost,
                           "estimated_walk_minutes": distance / request.walking_speed_mps / 60,
                           "estimated_walking_exposure_degree_min": exposure})
@@ -222,6 +227,7 @@ class RoutingModel:
                          "discomfort_scale_c": self.scale, "routes": plans,
                          "all_assigned_routes": self.assigned_routes + plans,
                          "pending_trip_ids": unavailable,
+                         "pending_requests": pending_details,
                          "already_at_destination_ids": already_there},
         )
         self.simulator.graph = updated

@@ -140,6 +140,8 @@ class HeatExposureModel:
             graph=graph,
             diagnostics={
                 "edge_count": len(graph.edges),
+                "unsafe_utci_c": self._parameter("unsafe_utci_c"),
+                "reference_utci_c": self._parameter("reference_utci_c"),
                 "input_properties": list(self.config.input_properties),
                 "assumed_wind_speed_10m_mps": self._parameter(
                     "assumed_wind_speed_10m_mps"

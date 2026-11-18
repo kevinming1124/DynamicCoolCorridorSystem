@@ -128,7 +128,9 @@ edge = output.graph.edges[0]
 print(edge.edge_id, edge.properties["air_temp_f"], edge.properties["shade_pct"])
 ```
 
-`output.diagnostics` also reports the time, scenario, which misters were on,
+`output.diagnostics` also reports the uncooled temperature/humidity and misting
+range/humidity settings as evidence for the final verification audit, plus the
+time, scenario, which misters were on,
 and how many edges used the default shade.
 
 ## Connecting it to the pipeline
