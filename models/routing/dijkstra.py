@@ -222,23 +222,6 @@ if __name__ == "__main__":
 
     from utils import load_campus_graph
 
-    from .costs import PlaceholderHeat, make_step_cost
-
     graph = load_campus_graph(Path(__file__).parents[2] / "dataset" / "campus_50")
     _check_against_floyd_warshall(graph)
-
-    heat = PlaceholderHeat(graph, time_text="13:00")
-    adjacency = build_adjacency(graph)
-    start, destination = "Leavey Library", "Seeley G. Mudd Building"
-    print(f"\n{start} -> {destination} (placeholder heat at 13:00)\n")
-    print(f"{'preference':<12}{'minutes':>9}{'cost':>9}   route")
-    for preference in (0.0, 0.5, 1.0):
-        route = dijkstra(
-            adjacency,
-            next(iter(resolve_nodes(graph, start))),
-            resolve_nodes(graph, destination),
-            make_step_cost(heat, preference),
-        )
-        assert route is not None
-        print(f"{preference:<12}{route.total_minutes:>9.2f}{route.total_cost:>9.2f}   "
-              + " > ".join(route.nodes))
+    # Heat-aware routing demos live in model.py: python -m models.routing.model

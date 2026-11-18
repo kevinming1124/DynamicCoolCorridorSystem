@@ -10,6 +10,7 @@ from typing import Protocol, Sequence
 from models.control import ControlModel
 from models.environment import EnvironmentModel
 from models.heat_exposure import HeatExposureModel
+from models.routing import RoutingModel
 from utils import CampusGraph, ModelInput, ModelOutput, load_campus_graph
 
 
@@ -33,8 +34,12 @@ def build_initialization_pipeline() -> list[PipelineStage]:
 
 
 def build_pipeline() -> list[PipelineStage]:
-    """Create one round: control, apply commands, then recalculate heat."""
-    return [ControlModel.from_config(), *build_initialization_pipeline()]
+    """Create one round: control, apply commands, recalculate heat, then route."""
+    return [
+        ControlModel.from_config(),
+        *build_initialization_pipeline(),
+        RoutingModel.from_config(),
+    ]
 
 
 def run_pipeline(
@@ -86,7 +91,10 @@ def run_simulation(
         context=context,
     )
     for round_number in range(1, rounds + 1):
-        print(f"Round {round_number}/{rounds}: Control -> Environment -> Heat Exposure")
+        print(
+            f"Round {round_number}/{rounds}: "
+            "Control -> Environment -> Heat Exposure -> Routing"
+        )
         output = run_pipeline(
             graph=output.graph,
             stages=stages,
