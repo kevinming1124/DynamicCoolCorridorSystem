@@ -1,0 +1,31 @@
+# Buildings kept in the TRIMMED graph. One per line, spelled exactly as in
+# entrance_coverage.csv. Lines starting with # are ignored. Edit freely.
+
+# Libraries and student life
+Edward L Doheny Junior Memorial Library
+Leavey Library
+Ronald Tutor Campus Center
+Lyon Recreation Center
+Engemann Student Health Center
+Bovard Administration Building
+
+# Big lecture and classroom buildings
+Taper Hall
+Waite Phillips Hall
+Social Sciences Building
+Dr. Joseph Medicine Crow Center for International and Public Affairs
+Grace Ford Salvatori Hall of Letters, Arts and Sciences
+Hoffman Hall
+Jill & Frank Fertitta Hall
+Wallis Annenberg Hall
+Ralph and Goldy Lewis Hall
+Frank R Seaver Science Center
+
+# Engineering and CS
+Salvatori Computer Science Center
+Ginsburg Hall
+Seeley G. Mudd Building
+Ronald Tutor Hall
+Olin Hall of Engineering
+Kaprielian Hall
+Hughes Aircraft Electrical Engineering Center
