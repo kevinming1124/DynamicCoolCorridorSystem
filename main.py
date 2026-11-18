@@ -147,7 +147,11 @@ def main() -> None:
         graph=graph,
         rounds=arguments.rounds,
         debug_directory=arguments.debug_dir,
-        context={"time": arguments.time, "scenario": arguments.scenario},
+        context={
+            "time": arguments.time,
+            "scenario": arguments.scenario,
+            "dataset_dir": str(arguments.dataset),
+        },
     )
 
     print(f"Pipeline completed after {arguments.rounds} round(s): {final_output.model_name}")

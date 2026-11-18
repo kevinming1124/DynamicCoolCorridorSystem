@@ -8,14 +8,20 @@ properties onto every edge of the campus graph:
     air_temp_f            air temperature after any misting cooling (F)
     humidity_pct          relative humidity after any misting increase (%)
     solar_radiation_wm2   open-sky sunlight at this time (W/m2)
-    shade_pct             share of the path in shade, from the shade schedule (%)
+    shade_pct             share of the path in shade right now (%)
     mist_cooling_f        cooling from nearby misters that are on (F)
 
-Inputs come from three places, so other models never call anything special:
+Inputs come from these places, so other models never call anything special:
 
-    context["time"]       "HH:MM", defaults to config metadata default_time
-    context["scenario"]   scenario name, defaults to default_scenario
-    misting actuators     their "status" ("on"/"off") on the graph
+    context["time"]        "HH:MM", defaults to config metadata default_time
+    context["scenario"]    scenario name, defaults to default_scenario
+    context["dataset_dir"] optional: folder of the loaded dataset, so its own
+                           shade schedule is used (main.py passes it)
+    misting actuators      their "status" ("on"/"off") on the graph
+
+Shade works on any dataset. An edge listed in the dataset's shade schedule
+uses that entry; every other edge gets a shade type worked out from its
+direction and position (see ``_auto_shade_profiles``).
 
 All tunable numbers live in config.json and scenarios.json.
 """
@@ -159,7 +165,9 @@ class EnvironmentModel:
     def __init__(self, config: ModelConfig) -> None:
         self.config = config
         self.scenarios = self._load_scenarios()
-        self.shade_schedule = self._load_shade_schedule()
+        self.shade_profiles = self._load_shade_profiles()
+        self.fallback_shade_schedule = self._load_fallback_shade_schedule()
+        self._dataset_schedules: dict[Path, dict[str, Any] | None] = {}
         self._state: dict[str, Any] = {}
 
     @classmethod
@@ -225,7 +233,9 @@ class EnvironmentModel:
                 "time": self._state["time"],
                 "scenario": self._state["scenario_name"],
                 "misters_on": sorted(self._state["misters_on_ids"]),
-                "edges_using_default_shade": self._state["default_shade_edges"],
+                "shade_source": self._state["shade_source"],
+                "edges_with_scheduled_shade": self._state["scheduled_shade_edges"],
+                "edges_with_auto_shade": self._state["auto_shade_edges"],
             },
         )
 
@@ -307,6 +317,15 @@ class EnvironmentModel:
             and actuator.properties.get("status") == "on"
         ]
 
+        schedule, shade_source = self._shade_schedule_for(
+            model_input.graph, context.get("dataset_dir")
+        )
+        scheduled_edges = set(schedule["edges"]) if schedule else set()
+        auto_edges = [
+            edge for edge in model_input.graph.edges
+            if edge.edge_id not in scheduled_edges
+        ]
+
         self._state = {
             "time": time_text,
             "hour": hour,
@@ -319,19 +338,36 @@ class EnvironmentModel:
             "max_mist_reduction_f": max(
                 (a.max_heat_reduction_f or 0.0 for a in misters_on), default=0.0
             ),
-            "shade_slot": self._shade_slot(hour),
-            "default_shade_edges": 0,
+            "shade_schedule": schedule,
+            "shade_source": shade_source,
+            "schedule_slot": (
+                _latest_slot(schedule["time_slots"], hour) if schedule else None
+            ),
+            "auto_profiles": _auto_shade_profiles(
+                model_input.graph, auto_edges,
+                self._parameter("auto_shade_axis_ratio"),
+            ),
+            "scheduled_shade_edges": 0,
+            "auto_shade_edges": 0,
         }
 
     def _shade_for(self, edge_id: str) -> float:
-        """Shade percent for this edge at the current time slot."""
-        schedule = self.shade_schedule
-        profile_name = schedule.get("edges", {}).get(edge_id) if schedule else None
-        if profile_name is None:
-            self._state["default_shade_edges"] += 1
-            return self._parameter("default_shade_pct")
-        profile = schedule["profiles"][profile_name]
-        return float(profile[self._state["shade_slot"]])
+        """Shade percent for this edge right now.
+
+        1. The edge is in the dataset's shade schedule: use that entry.
+        2. Otherwise: use the shade type picked from the edge's direction
+           and position, with the matching profile in config.json.
+        """
+        state = self._state
+        schedule = state["shade_schedule"]
+        if schedule and edge_id in schedule["edges"]:
+            state["scheduled_shade_edges"] += 1
+            profile = schedule["profiles"][schedule["edges"][edge_id]]
+            return float(profile[state["schedule_slot"]])
+
+        state["auto_shade_edges"] += 1
+        profile = self.shade_profiles[state["auto_profiles"][edge_id]]
+        return float(profile[_latest_slot(list(profile), state["hour"])])
 
     def _mist_cooling_for(self, edge: GraphEdge, graph: CampusGraph) -> float:
         """Cooling from misters that are on, fading to zero at mist_range_m.
@@ -355,17 +391,6 @@ class EnvironmentModel:
                 )
         return min(total, self._state["max_mist_reduction_f"])
 
-    def _shade_slot(self, hour: float) -> str | None:
-        """Latest schedule slot at or before this time, clamped to the day."""
-        if not self.shade_schedule:
-            return None
-        slots = self.shade_schedule["time_slots"]
-        chosen = slots[0]
-        for slot in slots:
-            if _hour_from_text(slot) <= hour + 1e-9:
-                chosen = slot
-        return chosen
-
     def _load_scenarios(self) -> dict[str, dict[str, float]]:
         name = self.config.metadata.get("scenarios_file", "scenarios.json")
         path = MODEL_DIR / name
@@ -388,19 +413,73 @@ class EnvironmentModel:
             }
         return cleaned
 
-    def _load_shade_schedule(self) -> dict[str, Any] | None:
-        """Load the shade schedule; return None if it does not exist.
+    # ------------------------------------------------------------------
+    # Shade sources
+    # ------------------------------------------------------------------
+    def _shade_schedule_for(
+        self, graph: CampusGraph, dataset_dir: Any
+    ) -> tuple[dict[str, Any] | None, str]:
+        """Pick the shade schedule for this graph and say where it came from.
 
-        Without a schedule every edge uses default_shade_pct, so the model
-        still runs on datasets such as tiny_campus_block.
+        - dataset_dir given (main.py does this): that dataset's own schedule,
+          the file named under "shade_schedule" in its dataset.json, if any.
+        - No dataset_dir (models that call this one directly): the fallback
+          file in config.json, but only if every edge it lists is in this
+          graph. That keeps campus_50 exact while stopping its schedule from
+          being applied to a different graph that happens to reuse edge IDs.
+        Edges not covered by the chosen schedule get automatic shade.
         """
+        if dataset_dir:
+            schedule = self._dataset_schedule(Path(dataset_dir))
+            if schedule is None:
+                return None, "auto (dataset has no shade schedule)"
+            return schedule, "dataset shade schedule + auto for unlisted edges"
+
+        schedule = self.fallback_shade_schedule
+        edge_ids = {edge.edge_id for edge in graph.edges}
+        if schedule and set(schedule["edges"]) <= edge_ids:
+            return schedule, "config fallback schedule + auto for unlisted edges"
+        return None, "auto (no matching shade schedule)"
+
+    def _dataset_schedule(self, dataset_dir: Path) -> dict[str, Any] | None:
+        """The shade schedule named in <dataset_dir>/dataset.json, cached."""
+        key = dataset_dir.resolve()
+        if key not in self._dataset_schedules:
+            manifest_path = key / "dataset.json"
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except FileNotFoundError as exc:
+                raise ValueError(f"Dataset manifest not found: {manifest_path}") from exc
+            name = manifest.get("files", {}).get("shade_schedule")
+            self._dataset_schedules[key] = (
+                _read_shade_schedule(key / name) if name else None
+            )
+        return self._dataset_schedules[key]
+
+    def _load_fallback_shade_schedule(self) -> dict[str, Any] | None:
         name = self.config.metadata.get("shade_schedule_file")
-        if not name:
+        if not name or not (PROJECT_ROOT / name).exists():
             return None
-        path = PROJECT_ROOT / name
-        if not path.exists():
-            return None
-        return json.loads(path.read_text(encoding="utf-8"))
+        return _read_shade_schedule(PROJECT_ROOT / name)
+
+    def _load_shade_profiles(self) -> dict[str, dict[str, float]]:
+        """Dataset-independent shade curves used for automatic shade."""
+        raw = self.config.metadata.get("shade_profiles")
+        if not isinstance(raw, dict):
+            raise ValueError("config.json metadata needs a 'shade_profiles' object")
+        missing = set(AUTO_SHADE_TYPES) - raw.keys()
+        if missing:
+            raise ValueError(f"'shade_profiles' is missing {sorted(missing)}")
+        profiles: dict[str, dict[str, float]] = {}
+        for name, points in raw.items():
+            if not isinstance(points, dict) or not points:
+                raise ValueError(f"shade profile '{name}' must map 'HH:MM' to percent")
+            ordered = sorted(points.items(), key=lambda item: _hour_from_text(item[0]))
+            for slot, value in ordered:
+                if not 0 <= float(value) <= 100:
+                    raise ValueError(f"shade profile '{name}' at {slot} is not 0-100")
+            profiles[name] = {slot: float(value) for slot, value in ordered}
+        return profiles
 
     def calculate_node(
         self, node: GraphNode, graph: CampusGraph
@@ -512,6 +591,103 @@ class EnvironmentModel:
             raise ValueError(f"Required parameter '{name}' is missing") from exc
 
 
+AUTO_SHADE_TYPES = ("open", "tree_lined", "building_east", "building_west")
+
+
+def _auto_shade_profiles(
+    graph: CampusGraph, edges: list[GraphEdge], axis_ratio: float
+) -> dict[str, str]:
+    """Pick a shade type for each edge from its direction and position.
+
+    Uses only node x/y positions, which every dataset has:
+
+    - North-south path (y changes at least axis_ratio times more than x):
+      runs beside buildings. The building side alternates from one
+      north-south path to the next, so neighbouring paths get morning
+      (building_east) or afternoon (building_west) shade.
+    - East-west path: every other one is tree_lined, the rest are open.
+    - Diagonal: cuts across lawns and plazas, so it is open.
+
+    "Next path" is measured in the dataset's own spacing: the typical
+    length of its east-west edges (gap between north-south paths) and of
+    its north-south edges (gap between east-west paths). On campus_50 this
+    reproduces the generator's shade assignment exactly.
+    """
+    if not edges:
+        return {}
+    nodes = graph.nodes
+    ratio = max(axis_ratio, 1.0)
+
+    def direction(edge: GraphEdge) -> tuple[str, float, float]:
+        a, b = nodes[edge.from_node], nodes[edge.to_node]
+        dx, dy = abs(b.x_m - a.x_m), abs(b.y_m - a.y_m)
+        if dy > 0 and dy >= ratio * dx:
+            return "ns", dx, dy
+        if dx > 0 and dx >= ratio * dy:
+            return "ew", dx, dy
+        return "diagonal", dx, dy
+
+    kinds = {edge.edge_id: direction(edge) for edge in graph.edges}
+    ew_lengths = [dx for kind, dx, _ in kinds.values() if kind == "ew"]
+    ns_lengths = [dy for kind, _, dy in kinds.values() if kind == "ns"]
+    all_lengths = ew_lengths + ns_lengths or [1.0]
+    x_gap = _median(ew_lengths) if ew_lengths else _median(all_lengths)
+    y_gap = _median(ns_lengths) if ns_lengths else _median(all_lengths)
+    min_x = min(node.x_m for node in nodes.values())
+    min_y = min(node.y_m for node in nodes.values())
+
+    profiles: dict[str, str] = {}
+    for edge in edges:
+        kind = kinds[edge.edge_id][0]
+        a, b = nodes[edge.from_node], nodes[edge.to_node]
+        mid_x, mid_y = (a.x_m + b.x_m) / 2, (a.y_m + b.y_m) / 2
+        if kind == "ns":
+            column = math.floor((mid_x - min_x) / x_gap + 0.5)
+            profiles[edge.edge_id] = "building_east" if column % 2 == 0 else "building_west"
+        elif kind == "ew":
+            row = math.floor((mid_y - min_y) / y_gap + 0.5)
+            profiles[edge.edge_id] = "tree_lined" if row % 2 == 1 else "open"
+        else:
+            profiles[edge.edge_id] = "open"
+    return profiles
+
+
+def _median(values: list[float]) -> float:
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[middle]
+    return (ordered[middle - 1] + ordered[middle]) / 2
+
+
+def _latest_slot(slots: list[str], hour: float) -> str:
+    """Latest "HH:MM" slot at or before this hour; the first slot if none."""
+    chosen = slots[0]
+    for slot in slots:
+        if _hour_from_text(slot) <= hour + 1e-9:
+            chosen = slot
+    return chosen
+
+
+def _read_shade_schedule(path: Path) -> dict[str, Any]:
+    """Read a dataset shade schedule and check its shape."""
+    try:
+        schedule = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError(f"Shade schedule not found: {path}") from exc
+    for key in ("time_slots", "profiles", "edges"):
+        if key not in schedule:
+            raise ValueError(f"{path}: shade schedule is missing '{key}'")
+    for edge_id, profile_name in schedule["edges"].items():
+        if profile_name not in schedule["profiles"]:
+            raise ValueError(f"{path}: {edge_id} uses unknown profile '{profile_name}'")
+    for name, profile in schedule["profiles"].items():
+        missing = [slot for slot in schedule["time_slots"] if slot not in profile]
+        if missing:
+            raise ValueError(f"{path}: profile '{name}' is missing slots {missing}")
+    return schedule
+
+
 def _hour_from_text(time_text: str) -> float:
     """Convert "HH:MM" to hours, e.g. "13:30" -> 13.5."""
     try:
@@ -594,7 +770,7 @@ if __name__ == "__main__":
     graph = _graph_with_misters_on(
         load_campus_graph(arguments.dataset), arguments.mister_on
     )
-    context = {}
+    context = {"dataset_dir": str(arguments.dataset)}
     if arguments.scenario:
         context["scenario"] = arguments.scenario
 

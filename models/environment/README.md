@@ -8,7 +8,8 @@ graph. Later models (heat exposure, prediction, routing, control) read these
 values from the graph.
 
 It was built from `models/_template` using the team workflow and uses only the
-Python standard library. No shared files were changed.
+Python standard library. The only shared-file change is one line in
+`main.py`, which passes the dataset folder in `context["dataset_dir"]`.
 
 ## What it outputs
 
@@ -37,7 +38,8 @@ how the values are calculated, not what they are called.
 | Time of day | `context["time"]`, as `"HH:MM"` | `"12:00"` |
 | Weather scenario | `context["scenario"]` | `"hot"` |
 | Which misters are on | each misting actuator's `status` on the graph | all off |
-| Shade | `dataset/campus_50/shade_schedule.json` | 5% if an edge is not listed |
+| Dataset folder | `context["dataset_dir"]` (`main.py` passes it) | optional, see Shade below |
+| Shade | the loaded dataset's shade schedule, if it has one | automatic shade from edge direction |
 
 The control model only needs to set a mister's `status` to `"on"`; this model
 picks that up automatically. Other models do not call any special functions.
@@ -58,9 +60,42 @@ at 08:00, 96 F at 13:00, and 98 F at 15:00.
 to `peak_solar_radiation_wm2` (900) at midday, and is multiplied by the
 scenario's `cloud_factor` (1.0 for clear sky).
 
-**Shade** is looked up in the shade schedule: the edge's profile (open,
-tree-lined, building on the east, or building on the west) at the latest
-30-minute slot at or before the current time. See `dataset/campus_50/README.md`.
+**Shade** works on any dataset. Each edge has one of four shade types, and each
+type has a daily curve (`shade_profiles` in `config.json`):
+
+| Type | Shade |
+| --- | --- |
+| `open` | 5% all day |
+| `tree_lined` | 60% all day |
+| `building_east` | 70% until 11:00, 40% until 12:00, then 15% (morning shade) |
+| `building_west` | 15% until 13:30, 40% until 14:30, then 70% (afternoon shade) |
+
+Where the shade type comes from, per edge:
+
+1. **The dataset's own shade schedule**, if the edge is listed in it. The file
+   is the one named `"shade_schedule"` under `"files"` in that dataset's
+   `dataset.json` (campus_50 has one, see `dataset/campus_50/README.md`).
+2. **Otherwise, automatically** from the edge's direction and position, using
+   only node `x_m`/`y_m`:
+   - north-south paths run beside buildings, alternating building-on-the-east
+     and building-on-the-west from one path to the next;
+   - every other east-west path is tree-lined, the rest are open;
+   - diagonal paths cross lawns and plazas, so they are open.
+
+   "Next path" uses the dataset's own spacing (typical edge lengths), so it
+   works at any scale. On campus_50 this rule gives the same shade type as
+   the hand-made schedule on all 100 edges.
+
+So a new dataset needs no shade file to get realistic shade, a dataset that
+grows new edges gets shade for them automatically, and campus_50's values are
+unchanged.
+
+Models that call this one directly without `dataset_dir` (control and heat
+exposure self-tests, routing's forecast) still get campus_50's schedule
+through `shade_schedule_file` in `config.json`, but only when every edge in
+that file exists in the graph, so it is never applied to a different graph
+that reuses edge IDs. The output diagnostics report `shade_source`,
+`edges_with_scheduled_shade`, and `edges_with_auto_shade`.
 
 **Misting** cools every edge within `mist_range_m` (75 m) of a mister that is
 on. Cooling is strongest at the mister (up to its `max_heat_reduction_f`, 5.4 F)
