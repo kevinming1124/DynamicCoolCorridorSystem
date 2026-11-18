@@ -1,0 +1,15 @@
+{
+  "description": "Fixed Olin Hall to Seeley G. Mudd routes through SIM_S2, in both directions. No route search is performed by the movement demo.",
+  "pedestrians": [
+    {
+      "pedestrian_id": 1,
+      "route": ["U000144", "V0192_001", "U000143", "V0116_002", "V0116_001", "U000040", "V0117_001", "V0117_002", "U000269", "V0198_001", "U000270"],
+      "walking_speed_mps": 1.4
+    },
+    {
+      "pedestrian_id": 2,
+      "route": ["U000270", "V0198_001", "U000269", "V0117_002", "V0117_001", "U000040", "V0116_001", "V0116_002", "U000143", "V0192_001", "U000144"],
+      "walking_speed_mps": 1.4
+    }
+  ]
+}

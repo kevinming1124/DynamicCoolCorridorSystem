@@ -6,6 +6,49 @@ The routingc stage assigns ordered node paths to one persistent simulator;
 agents retain progress, walking time and signal countdowns between calls.
 See models/routing/README.md for trip requests and heat-weighted routing.
 
+## Standalone movement demo
+
+```sh
+python -m models.pedestrian.demo
+python -m models.pedestrian.demo --steps 20 --dt 5
+python -m models.pedestrian.demo --save debug/pedestrian_movement.json
+```
+
+The demo defaults to `dataset/usc_osm_trimmed` and the fixed node routes in
+`example_usc_routes.json`: Olin Hall of Engineering to Seeley G. Mudd Building
+and back, crossing `SIM_S2`. It performs no route search and does not run
+Environment, Heat Exposure, or Control. Signal commands come directly from
+the loaded dataset (currently a 30-second wait for USC), rather than a hot-weather
+Control command. Misters do not affect this movement-only run.
+
+By default it advances ten 10-second steps, keeping the same simulator across
+steps. Each route is about 75.48 m; at 1.4 m/s each person takes about 53.92 s
+walking plus 30 s waiting, arriving within the 100-second demo. The simulation
+clock continues through all requested steps after arrival; individual walking
+and waiting totals stop at arrival.
+
+Output shows the initial state and every step: state, distance along the route,
+segment and position, walking time, waiting time, and remaining signal delay.
+`--save` writes final edge occupancy and all snapshots, including arrival status
+and the loaded signal commands. `--steps` must be positive and `--dt` finite and
+nonnegative. `--dt 0` inspects occupancy without advancing movement.
+
+Use `--dataset` and `--routes` together to test a different map with matching
+fixed routes. The older `example_routes.json` uses synthetic-map node IDs and
+is retained for compatibility; it is not the USC demo's default.
+
+## Tests
+
+```sh
+python -m unittest discover -s models/pedestrian/tests
+```
+
+Dataset integration tests use USC and derive expected movement from actual
+segment distances. They cover bidirectional movement, segment transitions,
+signal waiting across steps and command changes, arrival timing, occupancy,
+preservation of graph properties, and saved snapshots. Small synthetic unit
+tests remain for isolated movement and validation edge cases.
+
 ## Run a signal crossing
 
 ```sh
