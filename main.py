@@ -11,6 +11,8 @@ from typing import Any, Mapping, Protocol, Sequence
 
 from models.control import ControlModel
 from models.environment import EnvironmentModel
+from models.environment.model import ModelConfig as EnvironmentConfig
+from models.environment.model import ModelConfig as EnvironmentConfig
 from models.heat_exposure import HeatExposureModel
 from models.pedestrian.model import PedestrianSimulator
 from models.routing import RoutingModel, TripRequest, load_trip_requests
