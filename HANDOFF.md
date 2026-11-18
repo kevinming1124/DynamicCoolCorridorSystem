@@ -1,8 +1,7 @@
 # Dynamic Cool Corridor System handoff
 
 This document is the starting point for a new developer or a new GPT session.
-It describes the current implementation, the decisions already made, and the
-safe way to extend the project.
+It describes the current implementation and how to extend the project.
 
 ## Current state
 
@@ -15,7 +14,7 @@ safe way to extend the project.
 - One persistent simulator and routingc stage; trip requests via `--trips` or legacy `--routes` endpoints
 - Pedestrian timestep: `--pedestrian-dt`, default one second per round
 - Environment time and scenario stay fixed; pedestrian elapsed seconds advance separately
-- Each round receives the previous round's graph; an advancing shared clock is deferred
+- Each round receives the previous round's graph
 - Default dataset: `usc_osm_trimmed` (real OSM geometry, assumed simulation inputs); legacy datasets remain available
 - Optional `--misting-count 0|4|6|10` loads nested USC placements from `misting_scenarios.json` without copying the map; omission retains original actuators. Every stage records the explicit selection in `diagnostics.misting_scenario`.
 - Misting uses a 10 m radius and covered-length fraction times full cooling, without distance decay. Scenario startup validates anchors and rejects touching/overlapping circles.
@@ -53,7 +52,8 @@ DynamicCoolCorridorSystem/
 │   ├── graph/
 │   │   ├── entities.py             # GraphNode, GraphEdge, and StaticActuator
 │   │   ├── graph.py                # CampusGraph and property updates
-│   │   └── json_loader.py          # JSON parsing and validation
+│   │   ├── json_loader.py          # JSON parsing and validation
+│   │   └── misting_scenarios.py    # Validated runtime misting overlays
 │   └── pipeline/
 │       └── contracts.py            # ModelInput and ModelOutput
 ├── models/
@@ -61,6 +61,13 @@ DynamicCoolCorridorSystem/
 │   │   ├── model.py                # Copyable model implementation
 │   │   ├── config.json             # Human-editable settings
 │   │   └── README.md               # Model creation guide
+│   ├── environment/               # Weather, shade, and mist cooling
+│   ├── heat_exposure/             # UTCI, exposure, and unsafe-heat flags
+│   ├── control/                   # Misting and traffic-signal commands
+│   ├── routing/                   # Persistent trip assignment and shared search
+│   │   ├── demo/                  # Optional standalone visualizations
+│   │   └── osm_build/             # Optional OSM rebuild/export tools
+│   ├── pedestrian/                # Persistent movement, signal waits, occupancy
 │   └── verification/
 │       ├── model.py                # Project model and result assembly
 │       ├── checks.py               # Python requirement checks
@@ -70,6 +77,8 @@ DynamicCoolCorridorSystem/
 │       ├── actuators.py            # Misting and signal/movement audit
 │       └── README.md               # Formal input and integration contract
 ├── dataset/
+│   ├── usc_osm_trimmed/            # Default: 832 nodes, 930 segments; misting layouts
+│   ├── campus_50/                  # Synthetic 50-node grid and shade schedule
 │   └── tiny_campus_block/
 │       ├── dataset.json             # Dataset manifest and metadata
 │       ├── nodes.json               # Canonical node data
@@ -77,6 +86,7 @@ DynamicCoolCorridorSystem/
 │       ├── actuators.json           # Canonical static actuator data
 │       ├── tiny_campus_block.xlsx   # Human-readable mirror
 │       └── README.md               # Dataset documentation
+├── tests/                          # Model and shared graph utility tests
 └── debug/                          # Ignored local model outputs
 ```
 
@@ -88,8 +98,8 @@ The code has three layers:
 2. `models` owns model-specific configuration and calculations.
 3. `main.py` loads the graph and runs model instances in order.
 
-Models must depend on `utils`. Models must not define their own copies of
-`GraphNode`, `GraphEdge`, `CampusGraph`, `ModelInput`, or `ModelOutput`.
+Models import `GraphNode`, `GraphEdge`, `CampusGraph`, `ModelInput`, and
+`ModelOutput` from `utils` so all stages share the same types and validation.
 
 The pipeline data flow is:
 
@@ -131,12 +141,12 @@ Keep changing or calculated values in `node.properties`, `edge.properties`, or
 - Active traffic-signal wait time
 - Selected directional-LED edge
 
-The loader initializes a misting point and directional LED with `status: "off"`,
-a traffic signal with `wait_time_s` equal to its static default, and an LED with
-`recommended_edge: null`. Other actuator-type/state combinations use `null`.
+The loader initializes misting points and directional LEDs with `status: "off"`.
+Traffic signals start with `status: "on"` and `wait_time_s` equal to their static
+default; signal status must remain on. All actuators start with
+`recommended_edge: null`; nonsignal actuators have `wait_time_s: null`.
 
-Every edge is bidirectional by definition. Do not restore a `bidirectional`
-column. Shade is dynamic and must not be restored as a static dataset column.
+Every edge is implicitly bidirectional. Shade is stored in runtime edge properties.
 
 Edge and node dynamic property values must be finite numbers. Actuator properties
 may be finite numbers, non-empty strings, or `null`. For every property it
@@ -169,7 +179,8 @@ non-empty strings, or `null`. A state-only model returns an updated graph with
 
 `ModelOutput.to_model_input()` passes the updated graph to the next model.
 Properties exist in memory until the process ends. `save_json()` writes the full
-state for debugging, but the project does not currently reload a saved JSON state.
+state for debugging. See the [pedestrian limitations](models/pedestrian/README.md#current-limits)
+for persistence support.
 
 `main.py` preserves supplied runtime context and builds a fresh
 `context["stage_diagnostics"]` mapping keyed by stage model name each pass.
@@ -187,16 +198,17 @@ The final verifier preserves `diagnostics["pedestrian_state"]` and adds
 6. Run the model directly from the repository root.
 7. Import and instantiate it in `build_pipeline()` in `main.py`.
 
-Example pipeline registration:
+For example, the current initialization stages in `main.py` are shown below.
+This excerpt uses `Path` and `PipelineStage` already imported or defined there:
 
 ```python
-from models.heat_exposure.model import HeatExposureModel
-from models.shade.model import ShadeModel
+from models.environment import EnvironmentModel
+from models.heat_exposure import HeatExposureModel
 
 
-def build_pipeline() -> list[PipelineStage]:
+def build_initialization_pipeline(dataset_directory: Path | None = None) -> list[PipelineStage]:
     return [
-        ShadeModel.from_config(),
+        EnvironmentModel.from_config(),
         HeatExposureModel.from_config(),
     ]
 ```
@@ -204,6 +216,11 @@ def build_pipeline() -> list[PipelineStage]:
 The list contains model instances, not model classes. Execution order is
 significant: a model must appear after every stage that produces properties it
 consumes.
+
+Environment supplies shade. The round builder `build_pipeline(pedestrians,
+trip_requests=None, dataset_directory=None)` adds Control before these stages,
+then Routing, the supplied persistent Pedestrian simulator, and Verification.
+Preserve that order and the shared simulator when registering another stage.
 
 Every model must implement this compatible interface:
 
@@ -234,18 +251,25 @@ configuration before returning the model instance.
 
 ## Dataset rules
 
-The JSON files are canonical. The workbook is a human-readable mirror.
+The JSON files are the canonical runtime inputs. The tiny dataset's workbook
+is a human-readable mirror. For generated datasets, make reproducible changes
+in the generator or exporter and regenerate the JSON: use
+`dataset/campus_50/generate_campus_50.py` for campus_50 and
+`models/routing/osm_build/export_pipeline.py` for the USC base map.
+The USC misting overlay is configured separately in `misting_scenarios.json`.
 
 When changing the dataset:
 
-1. Edit the JSON files first and refresh `tiny_campus_block.xlsx` afterward.
+1. For tiny_campus_block, edit the JSON first and refresh its workbook afterward.
+   For generated datasets, update the generating code and regenerate the JSON.
 2. Keep node and edge identifiers unique.
 3. Ensure every edge endpoint references an existing node.
-4. Do not create self-loop edges.
+4. Use distinct endpoints for every edge.
 5. Keep edge distances positive.
 6. Allow a blank `location_name` only when a node has no recognized place name,
    such as an intersection.
-7. Update `dataset/tiny_campus_block/README.md` when the schema changes.
+7. Update the affected dataset README; update the tiny dataset's schema guide
+   as well when the shared schema changes.
 8. Ensure actuator anchors and referenced edges exist in the graph.
 
 Current edge record fields:
@@ -294,33 +318,21 @@ When adding a third-party runtime dependency:
 1. Add it to `requirements.txt`.
 2. Explain why it is needed in the related change or documentation.
 3. Install with `python -m pip install -r requirements.txt`.
-4. Do not add a package when the standard library is sufficient.
+4. Prefer the standard library when it meets the requirement.
 
-## Decisions that should not be reversed casually
+## Integration and limitations
 
-- The shared package is named `utils` by explicit project decision.
-- Shared graph and pipeline classes live outside individual models.
-- Coordinates use local meters (`x_m`, `y_m`), not latitude and longitude.
-- Timestamps are intentionally absent.
-- All edges are implicitly bidirectional.
-- Shade is a dynamic property, not a static edge field.
-- Models pass properties in memory through the updated graph.
-- Debug output is optional and local.
-- The project uses `requirements.txt` for now.
-- The unit-test suite was intentionally removed. Do not recreate it unless the
-  project owner requests it.
+Pipeline ordering is maintained manually in `build_pipeline()`. Reported outputs
+are validated, but input-property dependencies are checked during execution
+rather than before the pipeline starts.
 
-## Known limitations and next decisions
+Current limitations are described with the affected behavior:
 
-- Initialization and rounds register the real environment, heat, control, and pedestrian stages.
-- Routingc runs before Pedestrian; see `models/routing/README.md` for the heat adapter, trip contract and limitations.
-- Pedestrians execute signal waits at controlled departures. Verification audits current conditions; dynamic rerouting and heat prediction are not implemented.
-- There is no persisted pipeline state loader.
-- Pipeline ordering is maintained manually in `build_pipeline()`.
-- The pipeline validates reported outputs but does not preflight input-property dependencies before execution.
-- Runtime context includes same-pass stage diagnostics and a pre-movement snapshot for verification.
-- There is no packaging configuration or command-line installation entry point.
-- Use pipeline smoke runs and the existing pedestrian test suite for validation.
+- [Routing policy and estimates](models/routing/README.md#verification-policy-and-remaining-limitations).
+- [Pedestrian movement and persistence](models/pedestrian/README.md#current-limits).
+- [Verification scope](models/verification/README.md#engines-and-actuator-scope).
+
+Use pipeline smoke runs and the automated suite under `tests/` for validation.
 
 ## Suggested GPT workflow
 
@@ -329,15 +341,17 @@ Give a new GPT session this prompt:
 ```text
 Work in the DynamicCoolCorridorSystem repository. Read HANDOFF.md, README.md,
 main.py, models/_template/README.md, and the relevant files under utils before
-editing. Preserve the existing architecture and decisions documented in
-HANDOFF.md. Do not duplicate shared graph or pipeline classes inside models.
+editing. Follow the architecture documented in HANDOFF.md and import shared
+graph and pipeline classes from utils.
 Treat dataset.json, nodes.json, edges.json, and actuators.json as canonical static data and keep
-dynamic values in graph properties or model state. Do not add dependencies unless
-necessary; record any new
-runtime package in requirements.txt. Do not recreate the removed unittest suite
-unless I explicitly request it. Inspect the current Git status before editing,
+dynamic values in graph properties or model state. Record any new runtime
+package in requirements.txt and explain its purpose. Maintain the
+existing tests under tests/ and update tests/README.md when coverage changes.
+Inspect the current Git status before editing,
 preserve unrelated changes, and smoke-check the result with python main.py,
-python -m models._template.model, and compileall. My requested change is:
+python -m models._template.model, and compileall. Run relevant automated checks;
+the full suite command is python -m unittest discover -s tests -t . -v.
+My requested change is:
 
 <describe the task here>
 ```
@@ -371,21 +385,23 @@ to the existing simulator; shared graph/contracts remain in utils.
 
 The real USC graph preserves every source walkway, splitting geometry into
 unique node chains to avoid ambiguous parallel node routes. Its own building
-lookup and shade schedule are selected by main.py. Shade, weather, infrastructure
+lookup is loaded by main.py; Environment uses the selected dataset directory to
+read source-walkway grouping and generate shade. USC has no fixed shade schedule.
+Shade, weather, infrastructure
 and accessibility assumptions must be disclosed; they are not surveyed data.
 
 --trips accepts origins/destinations and preference. In main.py, legacy --routes
 is interpreted as demand endpoints and recomputed; direct simulator fixed-route
 APIs are unchanged. See the routing README for matching dataset commands.
 
-Environment time remains fixed; --pedestrian-dt controls movement seconds only.
-Signal waits now execute at controlled departures. No midtrip rerouting,
-personal heat history or pedestrian-demand control has been added.
+Environment time remains fixed; --pedestrian-dt advances walking and signal waiting.
+Signal waits execute at controlled departures; see the model guides for current
+movement and control behavior.
 
 ## Current-condition verification
 
-Verification is registered after Pedestrian. It is audit-only and uses no heat
-prediction or mock upstream values. If any available safe route exists, selection
+Verification is registered after Pedestrian and audits current upstream evidence.
+If any available safe route exists, selection
 must be safe. Otherwise it must minimize maximum heat exposure rate, then
 time-weighted cumulative exposure, then travel time, with no hard heat ceiling.
 The 2.5x arrival bound is independent and never filters route candidates.
@@ -395,10 +411,9 @@ including partial-edge progress and captured signal countdowns. It considers all
 resolved destination entrances and shares a committed current-edge prefix across
 comparisons. Efficient Dijkstra passes replace exhaustive simple-path search.
 Environment and Heat Exposure expose real same-round diagnostic evidence.
-Misting physics and signal/movement accounting are audited; reduction in thermal
-exposure attributable to misting is not claimed. Read the verifier README for
-input contracts, result codes, scope, and commands. Existing routing is unchanged
-and can legitimately fail the audit until its selection policy is extended.
+Misting physics and signal/movement accounting are audited. Read the verifier
+README for input contracts, result codes, scope, and commands. Routing uses a
+comfort-weighted cost and can fail the separately audited route policy.
 
 ## Persistent signal countdowns
 
@@ -412,5 +427,6 @@ wait begins. Routing cost/estimates currently exclude signal delay.
 
 See models/pedestrian/README.md for explicit assumptions and run
 models/routing/example_signal_trips.json to exercise a real-map signal. Extend
-the existing pedestrian tests for this behavior; no removed shared suite was
-reintroduced. Signal positions remain hypothetical.
+the existing tests under tests/pedestrian for this behavior. Shared graph,
+Environment, Heat Exposure, Control, and Verification checks also live under
+tests/. Signal positions remain hypothetical.

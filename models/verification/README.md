@@ -6,8 +6,7 @@ Verification runs last in every round:
 Control -> Environment -> Heat Exposure -> Routing -> Pedestrian -> Verification
 ```
 
-This is an audit. It does not assign routes, change commands, stop movement, or
-reroute existing pedestrians. Heat prediction is not implemented or required.
+This stage reports audit results while preserving routes, commands, and movement.
 All route assessments use the current round's heat and signal settings.
 
 ## Route policy
@@ -53,8 +52,8 @@ Missing or malformed required evidence raises an explicit input error.
 | Routing | `all_assigned_routes` including destination entrances, `pending_requests` with resolved endpoints and speed, `pending_trip_ids`, `already_at_destination_ids`; optional numeric edge `blocked` |
 | Pedestrian | Before/after snapshots with routes, progress, speeds, states, walking/wait totals, countdowns and sampled departures; requested timestep |
 
-No per-edge route-order markers or global origin/destination flags are used:
-multiple pedestrians can share edges with different directions and progress.
+Each pedestrian's snapshot carries its route and progress, allowing multiple
+pedestrians to share edges in different directions.
 
 Verification audits both the pre-movement routes and post-movement remaining
 routes. Thus same-step arrivals cannot hide a bad route selection. Arrived
@@ -71,8 +70,7 @@ unsafe selected segment. It caches the compiled monitor and uses MoonLight
 
 Python uses safe-subgraph Dijkstra for safe-route existence, time Dijkstra for
 the independent arrival reference, then minimax Dijkstra followed by additive
-exposure/time Dijkstra for the fallback. There is no enumeration of all simple
-campus paths and no approximate search cutoff or unproven optimality result.
+exposure/time Dijkstra for the fallback.
 
 Actuator verification checks the effects actually implemented:
 
@@ -85,10 +83,10 @@ Actuator verification checks the effects actually implemented:
   Existing countdowns are retained across command changes. Walking, waiting,
   position, arrival, and once-per-departure fields must agree with the timestep.
 
-There are no invented physical floors, saturation flags, demand exemptions,
-linear exposure-response coefficients, or forecast baselines. Thermal exposure
-reduction attribution is explicitly not applicable: no no-misting thermal
-comparison is calculated. LED recommendation optimality is outside this audit.
+Heat prediction is not implemented; estimates use current conditions. Thermal
+exposure reduction attribution is not applicable because the audit does not
+calculate a no-misting thermal comparison. Actuator checks cover misting and
+signal behavior described above.
 
 ## Results
 
@@ -123,8 +121,8 @@ individual check statuses for scope. Prior failed rounds remain visible in
 and `signal_wait_consumed_sec` for existing consumers.
 
 Debug output is `round_001/06_requirements_verification.json` after the existing
-routing and movement files. The routing algorithm is unchanged and may violate
-the audited policy; enforcing compliance is a subsequent routing change.
+routing and movement files. The router's comfort-weighted cost can select routes
+that fail the audited policy.
 
 ## Run and validate
 
@@ -153,6 +151,5 @@ They obtain evidence directly from the USC pipeline and deliberately corrupt
 selected inputs to confirm detection of incorrect cooling, inconsistent waiting,
 unsafe route selection when a safe alternative exists, and missing evidence.
 They also check that graphs, commands, and evidence remain unchanged and that
-prior failures survive arrival. Verification formulas, policy thresholds, and
-actuator audit rules are unchanged.
+prior failures survive arrival.
 Java 21+ with `JAVA_HOME` and root Python requirements remain necessary.

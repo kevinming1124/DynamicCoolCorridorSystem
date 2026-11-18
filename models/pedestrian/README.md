@@ -137,11 +137,13 @@ simulator, trip_requests and dataset_directory explicitly.
 
 ## Current limits
 
-Routingc's cost and estimated_walk_minutes still exclude signal delays; actual
-pedestrian elapsed time includes them. No midtrip rerouting, crowd collision
-model or accumulated individual heat is implemented. Environment time/weather
-remain fixed while walking/waiting advance. Control consumes heat rather than
-pedestrian demand. Debug snapshots can be saved but no resume loader exists.
+Agents retain their assigned routes throughout a trip. Crowd collision handling
+and accumulated individual heat are not implemented. Environment time/weather
+remain fixed while walking/waiting advance. Debug snapshots can be saved, but
+there is no saved-state resume loader. See the
+[routing guide](../routing/README.md#verification-policy-and-remaining-limitations)
+for route policy and travel estimates, and the [control guide](../control/README.md)
+for heat-based actuator decisions.
 The final verification stage uses STREL and Python to audit current conditions
 without changing movement. The runner captures state before movement so
 same-step arrivals remain auditable, and the verifier preserves pedestrian

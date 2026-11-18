@@ -9,7 +9,7 @@ properties from every campus edge and appends:
 | --- | --- |
 | `tmrt_c` | Simplified mean radiant temperature estimate, C |
 | `utci_c` | Universal Thermal Climate Index, C |
-| `heat_exposure_rate` | UTCI degrees above the configured reference per minute |
+| `heat_exposure_rate` | Nonnegative UTCI degrees C above the configured reference; multiplied by minutes to estimate exposure |
 | `walking_heat_exposure` | Exposure accumulated while walking the whole edge, degree-minutes |
 | `unsafe_heat` | 1.0 when UTCI meets/exceeds the configured unsafe threshold; otherwise 0.0 |
 
@@ -21,8 +21,9 @@ properties from every campus edge and appends:
 - Longwave radiant surroundings are approximated as air temperature.
 - Solar load is reduced by the edge's shade percentage.
 - Shortwave absorptivity, projected body area, and emissivity are configurable.
-- The 1-10 route ranking and signal-wait accumulation belong to downstream
-  routing/pedestrian models.
+- Routing converts exposure into a 0-1 walkability score and uses a
+  distance/comfort cost. Pedestrian records actual signal waiting time;
+  Verification includes waiting in its current-condition route exposure estimates.
 
 ## Run
 

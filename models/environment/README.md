@@ -4,12 +4,14 @@ Owner: Aman
 
 This model creates the weather on the campus. For one time of day and one
 weather scenario, it writes five values onto **every edge** of the campus
-graph. Later models (heat exposure, prediction, routing, control) read these
-values from the graph.
+graph. Heat Exposure reads these values to calculate UTCI and heat flags;
+Control and Routing consume those heat outputs. Verification audits the
+environmental and heat evidence.
 
 It was built from `models/_template` using the team workflow and uses only the
-Python standard library. The only shared-file change is one line in
-`main.py`, which passes the dataset folder in `context["dataset_dir"]`.
+Python standard library. The pipeline passes the selected dataset folder in
+`context["dataset_dir"]` and forwards Environment diagnostics to Verification.
+The full pipeline also requires the packages in the root `requirements.txt`.
 
 ## What it outputs
 
@@ -28,8 +30,7 @@ decide how to combine them. The cooling from misters is already subtracted from
 `air_temp_f`; `mist_cooling_f` is reported separately so its effect is easy to
 see and evaluate.
 
-These names and units are the model's fixed interface. Improvements will change
-how the values are calculated, not what they are called.
+These names and units define the current output interface.
 
 ## What it reads
 
@@ -196,19 +197,3 @@ shade and weather at successive times of day.
 | `config.json` | Output names and tunable settings |
 | `scenarios.json` | Weather scenarios |
 | `__init__.py` | Makes `from models.environment import EnvironmentModel` work |
-
-## Simplifications and planned improvements
-
-This is a deliberately simple first version so the rest of the team can build
-on it now. Possible improvements, which will not change the five outputs:
-
-- Misting delay and fade-out over time (needs memory between time steps)
-- Small differences in temperature between edges, such as hotter open plazas
-- Shade-dependent surface heating
-- More scenarios as the team needs them
-
-Not modeled, by design: wind (removed per course feedback), heat risk scores
-(heat exposure model), forecasts and observation noise (prediction model), and
-signal wait times (control model).
-
-To request a change to this model, contact Aman.

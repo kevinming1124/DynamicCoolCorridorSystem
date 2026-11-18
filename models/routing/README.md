@@ -34,8 +34,7 @@ runs with no demand. Building routing starts at its first entrance and targets
 its cheapest reachable destination entrance, matching routingc.
 
 The stage consumes `graph.edges[*].properties.heat_exposure_rate` (degrees C
-above comfortable UTCI, supplied by Heat Exposure). It does not use STREL or a
-second air-temperature field. Numeric `blocked` values 0/1 are optional; 1
+above comfortable UTCI, supplied by Heat Exposure). Numeric `blocked` values 0/1 are optional; 1
 closes an edge to new route assignments. Inaccessible edges are excluded.
 
 Every edge receives numeric `walkability`, `blocked` and `planned_pedestrians`.
@@ -51,7 +50,7 @@ entrances; pending records include resolved endpoints and speed.
 
 ## Same algorithm, explicit heat adapter
 
-`models/routing/routing_core.py` contains routingc's unchanged Dijkstra,
+`models/routing/routing_core.py` contains the shared Dijkstra,
 make_cost, route and set_blocked functions. Both the standalone OSM prototype
 and this adapter import them. The pipeline uses a small CampusGraph edge view,
 without a second graph class or runtime NetworkX/OSMnx dependency.
@@ -59,7 +58,7 @@ The main pipeline does not depend on the optional [demo](demo/README.md) or
 [osm_build](osm_build/README.md) folders. They contain standalone visualizations
 and tools for rebuilding the exported dataset, respectively.
 
-The prototype used placeholder walkability. The pipeline instead defines:
+The pipeline defines:
 
 ```
 walkability = 1 - min(1, heat_exposure_rate / discomfort_scale_c)
@@ -69,14 +68,16 @@ cost = distance_m * (1 + 4 * preference * (1 - walkability))
 The default discomfort_scale_c is 20; this is a configurable modeling assumption,
 not a calibrated thermal preference model. Positive preference penalizes hot
 walkways; it does not guarantee a different route. The real-campus example's two
-preferences currently choose the same 868 m path with uniform assumed shade.
+preferences currently choose the same approximately 868 m path at the default
+12:00 hot conditions. Shade varies by original walkway using Environment's
+generated profiles; these are simulation assumptions, not measured shadows.
 Estimated exposure is sum(heat_exposure_rate × walking minutes) at assignment
 conditions. It is a route estimate, not an accumulated individual exposure log.
 
 ## Persistence and compatibility
 
-Requests are consumed once when assigned; agents persist and are never spawned
-again each round. Unreachable requests stay pending and are retried next round.
+Requests are consumed once when assigned; agents persist across rounds.
+Unreachable requests stay pending and are retried next round.
 Unknown names fail clearly. A request already at a destination is reported and
 consumed without creating an agent. Assignment validation is atomic within this
 stage. Preloaded, unmoved simulator agents can be routed before departure;
@@ -96,17 +97,14 @@ Direct calls to PedestrianSimulator.from_routes_file still assign fixed paths.
 
 The final verifier checks safe-first selection, or the coolest fallback when no
 safe route exists, plus an independent 2.5x time bound. This router still uses its
-original comfort-weighted cost and does not enforce those requirements. Audit
-failures are reported without changing assignment or movement. No forecast
-inputs are used. See `models/verification/README.md`.
+comfort-weighted cost and may fail that policy. See the
+[verification guide](../verification/README.md) for audit behavior.
 
 Pedestrians now execute signal delays before controlled departures; see
 models/pedestrian/README.md and example_signal_trips.json. Routing cost,
 estimated_walk_minutes and estimated walking exposure still exclude those
-delays. No midtrip rerouting, crowd avoidance, or personal accumulated heat is
-implemented. Blocking an edge affects pending/new routes,
-not agents already walking. Time/weather stay fixed while pedestrian elapsed
-time advances. Control reacts to heat rather than pedestrian demand and may
-oscillate misters between rounds. Complete arrivals remain in snapshots but
-have no edge occupancy. Stage diagnostics are saved under the debug directory;
-there is no saved-state resume loader or final aggregate route export.
+delays. Routes are assigned before departure and retained during the trip;
+blocking an edge affects pending/new routes. See the
+[pedestrian guide](../pedestrian/README.md#current-limits) for movement and
+persistence limitations. Stage diagnostics include route records and can be
+saved under the debug directory.

@@ -22,7 +22,7 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-The root requirements install pythermalcomfort for UTCI calculations and MoonLight 0.3.1 for STREL
+The root requirements install pythermalcomfort for UTCI calculations and MoonLight 0.3.1 for STREL.
 OSMnx and plotting packages are optional, for rebuilding/running the standalone prototype.
 
 ## Project structure
@@ -33,10 +33,19 @@ OSMnx and plotting packages are optional, for rebuilding/running the standalone 
         - pipeline/ (shared model input and output contracts)
     - models/
         - _template/ (copyable, human-editable model starter)
+        - environment/ (weather, generated or scheduled shade, and mist cooling)
+        - heat_exposure/ (UTCI, exposure, and unsafe-heat flags)
+        - control/ (mister commands and traffic-signal waits)
+        - routing/ (heat-weighted route assignment; optional demo/ and osm_build/ tools)
+        - pedestrian/ (persistent movement, signal waits, and occupancy)
         - verification/ (final hybrid STREL and Python requirements verifier)
     - dataset/
+        - usc_osm_trimmed/ (default: 832 nodes and 930 real-map segments)
+        - campus_50/ (50-node fictional grid with a shade schedule)
         - tiny_campus_block/ (9-node fictional test graph)
+    - tests/ (automated model and graph utility checks)
     - main.py
+    - requirements.txt
 
 ## Creating a model
 
@@ -102,8 +111,9 @@ python main.py --rounds 5 --time 13:00 --scenario hot --debug-dir debug
 
 Time and scenario stay fixed across rounds. Each round's environment applies
 the latest misting commands, then heat exposure is recalculated. Final heat
-results reflect the final round's misting state. Signals and LEDs reflect the
-control decision made at the start of that round.
+results reflect the final round's misting state. Signals reflect the control
+decision made at the start of that round. Legacy directional LEDs pass through
+unchanged; the controller does not update them.
 
 Debug files are grouped under `initialization/` and `round_001/`, `round_002/`,
 and so on. The completion output lists final actuator states.
@@ -188,9 +198,10 @@ routingc recomputes the intermediate nodes. The simulator's direct fixed-route
 API is unchanged. --dataset dataset/tiny_campus_block remains available with
 trip requests using that dataset's node IDs.
 
-Environment time/weather remain fixed; --pedestrian-dt only advances walking.
+Environment time/weather remain fixed; --pedestrian-dt advances walking and signal waiting.
 Pedestrians execute controller-provided signal waits at controlled departures.
-Midtrip rerouting, personal accumulated heat and crowd avoidance remain unimplemented. Control still uses heat rather than pedestrian demand.
+See the [routing limitations](models/routing/README.md#verification-policy-and-remaining-limitations)
+and [pedestrian limitations](models/pedestrian/README.md#current-limits).
 
 ## Signal-wait example
 

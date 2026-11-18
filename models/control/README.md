@@ -3,7 +3,8 @@
 The controller reads the current graph and returns a replacement graph with
 updated actuator properties. In `main.py`, initialization runs Environment ->
 Heat Exposure once, followed by `--rounds` repetitions of Control -> Environment
--> Heat Exposure (default: one round). Each round carries its graph forward;
+-> Heat Exposure -> Routing -> Pedestrian -> Verification (default: one round).
+Each round carries its graph forward;
 time and scenario stay fixed. Final heat results reflect the last misting
 commands, while signal settings use the heat inputs at that round's start.
 
@@ -31,8 +32,8 @@ part lies inside the radius. This is the current spatial approximation.
 Traffic signals read `unsafe_heat` on `controlled_edges`. They use the minimum
 wait time when any controlled edge has `unsafe_heat == 1.0`; otherwise they use
 the default wait time. Signals always stay on.
-Directional LED control has been removed. Legacy LED records in other datasets
-pass through unchanged and are excluded from rule checks. USC has no LEDs.
+Legacy directional LED records pass through unchanged and are excluded from
+rule checks.
 
 ## Outputs
 
@@ -41,9 +42,7 @@ already reads. Signals write `status` and `wait_time_s`.
 Existing node and edge properties are preserved.
 
 Pass the returned graph into environment to apply the commands. All stages must
-use the same loaded dataset. Control needs the heat exposure outputs;
-environment output alone cannot run the full controller. No prediction inputs
-are required.
+use the same loaded dataset. Control reads the current Heat Exposure outputs.
 
 ## Standalone demonstration
 
