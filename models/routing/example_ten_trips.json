@@ -1,0 +1,12 @@
+{"pedestrians": [
+  {"pedestrian_id": 1, "origin": "Leavey Library", "destination": "Seeley G. Mudd Building", "preference": 0.0},
+  {"pedestrian_id": 2, "origin": "Leavey Library", "destination": "Seeley G. Mudd Building", "preference": 1.0},
+  {"pedestrian_id": 3, "origin": "Olin Hall of Engineering", "destination": "Seeley G. Mudd Building", "preference": 0.0},
+  {"pedestrian_id": 4, "origin": "Seeley G. Mudd Building", "destination": "Olin Hall of Engineering", "preference": 1.0},
+  {"pedestrian_id": 5, "origin": "Ronald Tutor Campus Center", "destination": "Taper Hall", "preference": 0.5},
+  {"pedestrian_id": 6, "origin": "Lyon Recreation Center", "destination": "Edward L Doheny Junior Memorial Library", "preference": 0.0},
+  {"pedestrian_id": 7, "origin": "Lyon Recreation Center", "destination": "Edward L Doheny Junior Memorial Library", "preference": 1.0},
+  {"pedestrian_id": 8, "origin": "Bovard Administration Building", "destination": "Ronald Tutor Hall", "preference": 0.5},
+  {"pedestrian_id": 9, "origin": "Wallis Annenberg Hall", "destination": "Kaprielian Hall", "preference": 1.0},
+  {"pedestrian_id": 10, "origin": "Salvatori Computer Science Center", "destination": "Jill & Frank Fertitta Hall", "preference": 0.0}
+]}

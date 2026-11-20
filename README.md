@@ -169,6 +169,34 @@ audits it independently and never changes routes. See
 [`models/verification/README.md`](models/verification/README.md) for scope,
 input evidence, result codes and commands.
 
+## Animations
+
+`tools/make_animations.py` renders four GIFs from real pipeline runs on the USC
+map into `docs/animations/`. Walkways are coloured by felt heat (UTCI; 38 C and
+above is unsafe, drawn thicker), misters are blue when on, and signals show
+their current wait. Buildings and green areas come from the bundled OSM file.
+
+| GIF | What it shows |
+| --- | --- |
+| `1_day_on_campus.gif` | Warm day 08:00-18:00, 4 misters: heat builds and fades; misters switch on about 12:30 and off at 17:30 |
+| `2_ten_trips.gif` | Hot day from 11:00, 10 pedestrians: safe routes (green), coolest fallbacks (orange), replanning and the Verification result |
+| `3_with_misters.gif` | Hot day 10:00-17:00 with 10 misters, with a close-up of one mister zone |
+| `4_without_misters.gif` | The same day and close-up with no misters, for comparison |
+
+![A day on campus](docs/animations/1_day_on_campus.gif)
+![Ten trips](docs/animations/2_ten_trips.gif)
+
+Install the optional plotting packages once, then render (about 2-3 minutes):
+
+```powershell
+python -m pip install -r tools/requirements.txt
+python tools/make_animations.py all
+```
+
+Use `day`, `trips` or `misting` instead of `all` to render one set. The script
+records a small snapshot each round through `run_simulation(on_round=...)`,
+so it writes no debug files. The trips GIF uses `models/routing/example_ten_trips.json`.
+
 ## Automated tests
 
 All automated tests are organized under [`tests/`](tests/README.md). The coverage

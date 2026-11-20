@@ -19,6 +19,7 @@ It describes the current implementation and how to extend the project.
 - Optional `--misting-count 0|4|6|10` loads nested USC placements from `misting_scenarios.json` without copying the map; omission retains original actuators. Every stage records the explicit selection in `diagnostics.misting_scenario`.
 - Misting uses a 10 m radius. `main.load_simulation_graph` cuts walkways at every mister's circle (`utils/graph/mist_zones.py`), so only the inside piece gets the full 10.8 F; the rest gets none. No stacking or distance decay. Environment also outputs uncooled air temperature and humidity, Heat Exposure turns them into `uncooled_utci_c`, and Control switches misters on at 35 C and off below 33 C of that uncooled UTCI. Scenario startup validates anchors and rejects touching/overlapping circles.
 - Local temperature: Environment adds a fixed -3..+3 F offset per walkway from OSM surface and nearby trees, green areas, parking, major roads, fountains and open plazas (`surroundings.json`, rules in `models/environment/config.json`)
+- Animations: `tools/make_animations.py` (optional matplotlib/Pillow in `tools/requirements.txt`) renders four GIFs into `docs/animations/` using `run_simulation(on_round=...)`
 - Coordinates: local `x_m` and `y_m` values in meters
 - Automated model and graph utility tests live under `tests/`; see `tests/README.md` for coverage and known gaps
 

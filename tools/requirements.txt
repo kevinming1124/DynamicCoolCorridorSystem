@@ -1,0 +1,3 @@
+# Optional: only for tools/make_animations.py
+matplotlib>=3.8
+pillow>=10

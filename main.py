@@ -8,7 +8,7 @@ import math
 import re
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from models.control import ControlModel
 from models.environment import EnvironmentModel
@@ -151,8 +151,13 @@ def run_pipeline(
     stages: Sequence[PipelineStage],
     debug_directory: str | Path | None = None,
     context: Mapping[str, Any] | None = None,
+    diagnostics_sink: dict | None = None,
 ) -> ModelOutput:
-    """Run every stage and return the final output."""
+    """Run every stage and return the final output.
+
+    When ``diagnostics_sink`` is given, it is filled with this pass's
+    per-stage diagnostics, keyed by model name.
+    """
     if not stages:
         raise ValueError("The pipeline must contain at least one model stage")
 
@@ -178,6 +183,9 @@ def run_pipeline(
         model_input = final_output.to_model_input(context=runtime_context)
 
     assert final_output is not None
+    if diagnostics_sink is not None:
+        diagnostics_sink.clear()
+        diagnostics_sink.update(runtime_context["stage_diagnostics"])
     return final_output
 
 
@@ -190,8 +198,13 @@ def run_simulation(
     trip_requests: Sequence[TripRequest] | None = None,
     dataset_directory: Path | None = None,
     time_schedule: Sequence[str] | None = None,
+    on_round: Callable[[int, str | None, ModelOutput, dict], None] | None = None,
 ) -> ModelOutput:
     """Initialize once, then carry the graph through exactly ``rounds`` rounds.
+
+    ``on_round`` is called after each round with the round number, that
+    round's environment time, the round's final output and its per-stage
+    diagnostics (used, for example, to record animation frames).
 
     Without ``time_schedule``, time stays fixed at ``context["time"]``. With
     it, round ``r`` runs Environment at ``time_schedule[r - 1]`` and
@@ -222,6 +235,7 @@ def run_simulation(
     # Build the stage list once; never recreate agents inside the round loop.
     simulator = pedestrians if pedestrians is not None else PedestrianSimulator(output.graph)
     stages = build_pipeline(simulator, trip_requests, dataset_directory)
+    round_reports: dict = {}
     for round_number in range(1, rounds + 1):
         if time_schedule is not None:
             context["time"] = time_schedule[round_number - 1]
@@ -237,7 +251,10 @@ def run_simulation(
                 debug_root / f"round_{round_number:03d}" if debug_root is not None else None
             ),
             context=context,
+            diagnostics_sink=round_reports,
         )
+        if on_round is not None:
+            on_round(round_number, context.get("time"), output, dict(round_reports))
     return output
 
 
