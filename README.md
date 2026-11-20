@@ -80,8 +80,10 @@ python main.py --misting-count 0 --debug-dir debug/misting-0
 The layouts use the first 4, 6, or 10 ordered placements in
 `dataset/usc_osm_trimmed/misting_scenarios.json`; zero is the no-misting baseline.
 Only misting actuators are replaced in memory. Existing signals, map geometry,
-buildings, and shade are shared. Every mister starts off and uses the same 5.4 F
-full cooling strength. The environment configuration supplies the shared radius
+buildings, and shade are shared. Every mister starts off and uses the same 10.8 F
+full cooling strength. Walkways are cut where they cross a mister's circle, so
+only the piece inside the circle is cooled (17 walkways cut for 4 misters, 49 for 10). Control switches misters
+on at 35 C and off below 33 C of uncooled UTCI (see `models/control/README.md`). The environment configuration supplies the shared radius
 (currently 10 m); startup rejects overlapping or touching cooling circles and
 invalid anchors. Placement names refer to hypothetical locations on the graph.
 
@@ -109,7 +111,7 @@ one round runs after initialization. Choose a positive number of rounds:
 python main.py --rounds 5 --time 13:00 --scenario hot --debug-dir debug
 ```
 
-Time and scenario stay fixed across rounds. Each round's environment applies
+With `--time`, time and scenario stay fixed across rounds. Each round's environment applies
 the latest misting commands, then heat exposure is recalculated. Final heat
 results reflect the final round's misting state. Signals reflect the control
 decision made at the start of that round. Legacy directional LEDs pass through
@@ -117,6 +119,27 @@ unchanged; the controller does not update them.
 
 Debug files are grouped under `initialization/` and `round_001/`, `round_002/`,
 and so on. The completion output lists final actuator states.
+
+### Simulating a daytime range
+
+`--time-range` advances the clock through the day instead of holding `--time`
+fixed. The flag alone simulates 08:00 to 17:00:
+
+```powershell
+python main.py --time-range --misting-count 4
+python main.py --time-range 11:00-15:00 --trips models/routing/example_trips.json
+python main.py --time-range --pedestrian-dt 300 --env-update-min 60
+```
+
+Each round advances the clock by `--pedestrian-dt` (default 60 s in this mode),
+so the default day is 540 one-minute rounds, about 2 minutes of runtime on USC.
+Environment refreshes weather and shade every `--env-update-min` minutes (default 30),
+counted from the start time. Rounds between refreshes reuse the latest refresh time.
+Control, Heat Exposure, Routing, Pedestrian and Verification still run every round.
+`--rounds` is optional here and may stop the run early, but never past the end
+time. The range must lie within Environment's sunrise and sunset hours
+(06:00-20:00). The scenario stays fixed for the whole day. A full day with
+`--debug-dir` writes 540 round folders, so leave that option out unless you need it.
 
 `build_initialization_pipeline()` defines the initialization stages;
 `build_pipeline()` defines one round. `run_pipeline()` executes a single pass,
@@ -158,12 +181,12 @@ python -m unittest discover -s tests -t . -v
 Standalone model demos remain available for inspecting outputs; automated tests
 run separately and do not run automatically during the pipeline or demos.
 
-## Testing dataset
+## Datasets
 
-[`dataset/tiny_campus_block`](dataset/tiny_campus_block/README.md) contains a
-small campus graph with node coordinates, location categories, walkable edges,
-distances, accessibility information, static controllable infrastructure, and
-loader-derived initial actuator state.
+The project runs and tests only on `dataset/usc_osm_trimmed`.
+`dataset/campus_50` and `dataset/tiny_campus_block` stay in the repository for
+reference and for their schema documentation, but the pipeline, demos and
+automated tests no longer use them.
 
 ## Routing and pedestrians on the real USC map
 
@@ -187,18 +210,12 @@ current Heat Exposure output, converts it to comfort weights, and uses
 routingc's shared search/cost functions. The final audit uses STREL for
 selected-route safety; routing itself remains unchanged.
 
-For old node-route examples, select their matching graph explicitly:
+In the runner, legacy --routes supplies origin/destination endpoints and
+routingc recomputes the intermediate nodes. Use USC node IDs or building names;
+the older campus_50 route examples are not used.
 
-```sh
-python main.py --dataset dataset/campus_50 --routes models/pedestrian/example_routes.json --rounds 5 --pedestrian-dt 60
-```
-
-In the runner, legacy --routes now supplies origin/destination endpoints;
-routingc recomputes the intermediate nodes. The simulator's direct fixed-route
-API is unchanged. --dataset dataset/tiny_campus_block remains available with
-trip requests using that dataset's node IDs.
-
-Environment time/weather remain fixed; --pedestrian-dt advances walking and signal waiting.
+With --time, environment time/weather remain fixed; with --time-range they follow the
+clock. --pedestrian-dt advances walking and signal waiting.
 Pedestrians execute controller-provided signal waits at controlled departures.
 See the [routing limitations](models/routing/README.md#verification-policy-and-remaining-limitations)
 and [pedestrian limitations](models/pedestrian/README.md#current-limits).

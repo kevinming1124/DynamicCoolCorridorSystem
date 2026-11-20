@@ -96,7 +96,7 @@ def export() -> dict:
         actuators.append({
             "actuator_id": f"SIM_M{i}", "actuator_type": "misting_point",
             "position": {"anchor_node": anchor, "x_m": n["x_m"], "y_m": n["y_m"]},
-            "parameters": {"max_heat_reduction_f": 5.4}, "edge_relationships": [],
+            "parameters": {"max_heat_reduction_f": 10.8}, "edge_relationships": [],
             "description": f"Hypothetical experiment mister at {name}; not a surveyed installation",
         })
     degree = Counter(node for e in edges for node in (e["from_node"], e["to_node"]))

@@ -35,18 +35,25 @@ class TestGeneratedShade(unittest.TestCase):
         self.assertTrue(any(morning[e] > noon[e] for e in morning))
         self.assertTrue(any(afternoon[e] > noon[e] for e in morning))
 
-    def test_schedule_is_explicit_and_does_not_leak_between_datasets(self):
+    def test_usc_uses_generated_shade_without_a_schedule(self):
         model = EnvironmentModel.from_config()
-        campus = ROOT / "dataset" / "campus_50"
-        graph = load_campus_graph(campus)
-        scheduled = model.predict(ModelInput(graph, context={"dataset_dir": str(campus)}))
-        self.assertEqual(scheduled.diagnostics["edges_with_scheduled_shade"], len(graph.edges))
-        automatic = model.predict(ModelInput(graph))
-        self.assertEqual(automatic.diagnostics["edges_with_scheduled_shade"], 0)
-        self.assertEqual(automatic.diagnostics["edges_with_auto_shade"], len(graph.edges))
         usc = load_campus_graph(USC)
         output = model.predict(ModelInput(usc, context={"dataset_dir": str(USC)}))
         self.assertEqual(output.diagnostics["edges_with_scheduled_shade"], 0)
+        self.assertEqual(output.diagnostics["edges_with_auto_shade"], len(usc.edges))
+
+    def test_cut_pieces_share_their_walkway_shade(self):
+        from main import load_simulation_graph
+
+        model = EnvironmentModel.from_config()
+        context = {"dataset_dir": str(USC), "time": "10:00"}
+        whole = model.predict(ModelInput(load_campus_graph(USC), context=context))
+        graph, _, summary = load_simulation_graph(USC, 10)
+        self.assertGreater(summary["split_walkways"], 0)
+        cut = model.predict(ModelInput(graph, context=context))
+        original = whole.property_values["shade_pct"]
+        for edge_id, shade in cut.property_values["shade_pct"].items():
+            self.assertEqual(shade, original[edge_id.split("~")[0]], edge_id)
 
 
 if __name__ == "__main__":

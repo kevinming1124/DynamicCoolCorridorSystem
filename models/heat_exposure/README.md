@@ -12,6 +12,7 @@ properties from every campus edge and appends:
 | `heat_exposure_rate` | Nonnegative UTCI degrees C above the configured reference; multiplied by minutes to estimate exposure |
 | `walking_heat_exposure` | Exposure accumulated while walking the whole edge, degree-minutes |
 | `unsafe_heat` | 1.0 when UTCI meets/exceeds the configured unsafe threshold; otherwise 0.0 |
+| `uncooled_utci_c` | UTCI as if no mister were on, from Environment's `uncooled_air_temp_f` and `uncooled_humidity_pct` with the same shade and sunlight. Equals `utci_c` on edges no mister cools. Control uses it to switch misters |
 
 ## Model assumptions
 

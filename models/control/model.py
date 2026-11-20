@@ -27,15 +27,23 @@ DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.json")
 DEFAULT_DATASET_PATH = PROJECT_ROOT / "dataset" / "usc_osm_trimmed"
 
 UNSAFE_HEAT_PROPERTY = "unsafe_heat"
+UNCOOLED_UTCI_PROPERTY = "uncooled_utci_c"
 
 
 @dataclass(frozen=True)
 class ModelConfig:
-    """Basic settings for the actuator control model."""
+    """Basic settings for the actuator control model.
+
+    Misters switch on when the hottest uncooled UTCI in their zone reaches
+    ``mist_on_utci_c`` and switch off once it falls below ``mist_off_utci_c``;
+    between the two they keep their current state.
+    """
 
     model_name: str
     description: str
     enabled: bool
+    mist_on_utci_c: float
+    mist_off_utci_c: float
 
     @classmethod
     def from_file(cls, path: str | Path = DEFAULT_CONFIG_PATH) -> "ModelConfig":
@@ -59,12 +67,33 @@ class ModelConfig:
             raise ValueError("'description' must be a string")
         if not isinstance(raw["enabled"], bool):
             raise ValueError("'enabled' must be true or false")
+        parameters = raw.get("parameters")
+        if not isinstance(parameters, dict):
+            raise ValueError("'parameters' must be an object")
+        thresholds = {}
+        for name in ("mist_on_utci_c", "mist_off_utci_c"):
+            value = parameters.get(name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) \
+                    or not math.isfinite(value):
+                raise ValueError(f"Parameter '{name}' must be a finite number")
+            thresholds[name] = float(value)
+        if thresholds["mist_off_utci_c"] > thresholds["mist_on_utci_c"]:
+            raise ValueError("'mist_off_utci_c' cannot exceed 'mist_on_utci_c'")
 
         return cls(
             model_name=raw["model_name"].strip(),
             description=raw["description"],
             enabled=raw["enabled"],
+            **thresholds,
         )
+
+
+def misting_command(previous_status: object, hottest_uncooled_utci_c: float,
+                    on_utci_c: float, off_utci_c: float) -> str:
+    """On/off with a dead band: on at ``on_utci_c``, off below ``off_utci_c``."""
+    if previous_status == "on":
+        return "off" if hottest_uncooled_utci_c < off_utci_c else "on"
+    return "on" if hottest_uncooled_utci_c >= on_utci_c else "off"
 
 
 class ControlModel:
@@ -98,7 +127,9 @@ class ControlModel:
             property_names=(),
             property_values={},
             graph=graph,
-            diagnostics={"mist_range_m": self.mist_range_m},
+            diagnostics={"mist_range_m": self.mist_range_m,
+                         "mist_on_utci_c": self.config.mist_on_utci_c,
+                         "mist_off_utci_c": self.config.mist_off_utci_c},
         )
 
     def predict(self, model_input: ModelInput) -> ModelOutput:
@@ -122,7 +153,7 @@ class ControlModel:
     def control_misting_point(
         self, actuator: StaticActuator, graph: CampusGraph
     ) -> StaticActuator:
-        """Mist when any segment overlapping the cooling zone is unsafe."""
+        """Switch on/off from the hottest uncooled UTCI inside the cooling zone."""
         observed_edges = tuple(
             edge
             for edge in graph.edges
@@ -136,15 +167,15 @@ class ControlModel:
             raise ValueError(
                 f"{actuator.actuator_id}: no walkway segments overlap the misting observation zone"
             )
-        unsafe_heat = max(
-            self._unsafe_heat(edge.properties, edge.edge_id)
+        hottest = max(
+            self._numeric_property(edge.properties, UNCOOLED_UTCI_PROPERTY, edge.edge_id)
             for edge in observed_edges
         )
-        status = "on" if unsafe_heat == 1.0 else "off"
+        status = misting_command(actuator.properties.get("status"), hottest,
+                                 self.config.mist_on_utci_c, self.config.mist_off_utci_c)
         print(
             f"Controlling misting point {actuator.actuator_id}: "
-            f"unsafe heat {unsafe_heat:.0f} "
-            f"-> {status}"
+            f"uncooled UTCI {hottest:.1f} C -> {status}"
         )
         return actuator.with_property("status", status)
 
@@ -215,12 +246,19 @@ class ControlModel:
         return float(value)
 
 
-def audit_control_rules(before: CampusGraph, after: CampusGraph, radius: float) -> list[dict]:
-    """Check commands against pre-control heat flags, without applying effects.
+def audit_control_rules(before: CampusGraph, after: CampusGraph, radius: float,
+                        on_utci_c: float | None = None,
+                        off_utci_c: float | None = None) -> list[dict]:
+    """Check commands against pre-control heat, without applying effects.
 
     Observation is checked independently using point-to-segment distance rather
-    than the controller's circle-intersection coverage calculation.
+    than the controller's circle-intersection coverage calculation. Misting
+    thresholds default to the control configuration.
     """
+    if on_utci_c is None or off_utci_c is None:
+        config = ModelConfig.from_file()
+        on_utci_c = config.mist_on_utci_c if on_utci_c is None else on_utci_c
+        off_utci_c = config.mist_off_utci_c if off_utci_c is None else off_utci_c
     reports = []
     for identifier, actuator in before.actuators.items():
         if actuator.actuator_type == "misting_point":
@@ -235,15 +273,20 @@ def audit_control_rules(before: CampusGraph, after: CampusGraph, radius: float) 
                                       + (actuator.y_m - a.y_m) * dy) / squared))
                 distance = math.hypot(a.x_m + t * dx - actuator.x_m,
                                       a.y_m + t * dy - actuator.y_m)
-                if distance < radius:
+                # Pieces cut at the circle boundary end exactly on it; allow for rounding.
+                if distance < radius * (1 - 1e-9):
                     observed.append(edge)
         elif actuator.actuator_type == "traffic_signal":
             observed = [edge for edge in before.edges if edge.edge_id in actuator.controlled_edges]
         else:
             continue
         unsafe_count = sum(edge.properties[UNSAFE_HEAT_PROPERTY] == 1.0 for edge in observed)
+        hottest = None
         if actuator.actuator_type == "misting_point":
-            expected = {"status": "on" if unsafe_count else "off"}
+            hottest = max((edge.properties[UNCOOLED_UTCI_PROPERTY] for edge in observed),
+                          default=None)
+            expected = {"status": None if hottest is None else misting_command(
+                actuator.properties.get("status"), hottest, on_utci_c, off_utci_c)}
         else:
             expected = {"status": "on", "wait_time_s": (
                 actuator.min_wait_time_s if unsafe_count else actuator.default_wait_time_s)}
@@ -253,6 +296,9 @@ def audit_control_rules(before: CampusGraph, after: CampusGraph, radius: float) 
             "actuator_id": identifier, "actuator_type": actuator.actuator_type,
             "observed_edges": [edge.edge_id for edge in observed],
             "unsafe_segment_count": unsafe_count,
+            **({"hottest_uncooled_utci_c": hottest,
+                "mist_on_utci_c": on_utci_c, "mist_off_utci_c": off_utci_c}
+               if actuator.actuator_type == "misting_point" else {}),
             "previous": previous, "expected": expected, "actual": actual,
             "result": "PASS" if observed and actual == expected else "FAIL",
         })
@@ -268,6 +314,7 @@ def run_standalone(
     """Run upstream inputs once and check one control decision, without effects."""
     from models.environment import EnvironmentModel
     from models.heat_exposure import HeatExposureModel
+    from utils.graph.mist_zones import split_edges_at_mist_zones
     from utils.graph.misting_scenarios import apply_misting_scenario
 
     dataset = Path(dataset)
@@ -278,13 +325,15 @@ def run_standalone(
     layout = None
     if misting_count is not None:
         graph, layout = apply_misting_scenario(graph, dataset, misting_count, radius)
+    graph, _ = split_edges_at_mist_zones(graph, radius)
     context = {"dataset_dir": str(dataset), "time": time, "scenario": scenario}
     environment_output = environment.predict(ModelInput(graph=graph, context=context))
     heat_output = HeatExposureModel.from_config().predict(
         environment_output.to_model_input(context=context)
     )
     output = model.control(heat_output.to_model_input(context=context))
-    reports = audit_control_rules(heat_output.graph, output.graph, radius)
+    reports = audit_control_rules(heat_output.graph, output.graph, radius,
+                                  model.config.mist_on_utci_c, model.config.mist_off_utci_c)
     return replace(output, diagnostics={
         **output.diagnostics,
         "dataset_dir": str(dataset), "time": time, "scenario": scenario,

@@ -5,29 +5,38 @@ updated actuator properties. In `main.py`, initialization runs Environment ->
 Heat Exposure once, followed by `--rounds` repetitions of Control -> Environment
 -> Heat Exposure -> Routing -> Pedestrian -> Verification (default: one round).
 Each round carries its graph forward;
-time and scenario stay fixed. Final heat results reflect the last misting
+time and scenario stay fixed unless `--time-range` advances the clock (see the root README). Final heat results reflect the last misting
 commands, while signal settings use the heat inputs at that round's start.
 
 ## Inputs and observation area
 
-- Heat Exposure supplies **edge** `unsafe_heat`, a numeric flag of 0.0 or 1.0.
+- Heat Exposure supplies **edge** `uncooled_utci_c` (UTCI as if no mister were
+  on) for misters, and `unsafe_heat`, a numeric flag of 0.0 or 1.0, for signals.
 
 Each mister inspects every walkway segment with positive-length overlap inside
 its circular cooling zone, including nearby segments not connected to its anchor.
 The radius comes from Environment's `mist_range_m` (currently 10 m), and uses the
 same intersection calculation as cooling. Tangency, boundary-only contact, and
-zero-length segments do not count. It turns on
-when any observed edge has `unsafe_heat == 1.0`, and off when all observed
-edges have `unsafe_heat == 0.0`. It does not apply a separate temperature or
-exposure threshold. The heat exposure model owns the decision threshold through
-`unsafe_utci_c` (currently 38 degrees Celsius UTCI) in its configuration.
-Temperature, humidity, solar radiation, shade, and assumed wind speed affect
-that model's UTCI calculation. Every observed edge must have a numeric flag of
-0.0 or 1.0; missing or invalid flags produce an error. A zone with no observed
-segments also produces an error.
+zero-length segments do not count.
 
-An overlapping segment's heat flag represents the whole segment, even if only
-part lies inside the radius. This is the current spatial approximation.
+A mister switches on a dead band of the hottest observed `uncooled_utci_c`,
+set in this model's `config.json`:
+
+| Current state | Switches when | Default |
+| --- | --- | --- |
+| off | hottest uncooled UTCI >= `mist_on_utci_c` -> on | 35 C |
+| on | hottest uncooled UTCI < `mist_off_utci_c` -> off | 33 C |
+
+Between the two thresholds a mister keeps its current state. Both thresholds
+sit below Heat Exposure's unsafe line (38 C UTCI), so misters start before a
+walkway becomes unsafe. Using uncooled heat means a mister's own cooling cannot
+make its zone look safe and switch it off; without that, it would flicker on
+and off every round. On a hot 08:00-17:00 day with four misters, each switches
+on once, between 10:00 and 11:00, and stays on. Missing or non-numeric values
+produce an error. A zone with no observed segments also produces an error.
+
+The pipeline cuts walkways at the circle boundary before the run, so the
+observed segments are exactly the pieces inside the circle.
 
 Traffic signals read `unsafe_heat` on `controlled_edges`. They use the minimum
 wait time when any controlled edge has `unsafe_heat == 1.0`; otherwise they use
@@ -55,7 +64,6 @@ python -m models.control.model --misting-count 10 --time 08:00 --scenario mild
 python -m models.control.model --misting-count 0
 python -m models.control.model --misting-count base
 python -m models.control.model --save debug/control_rules.json
-python -m models.control.model --dataset dataset/campus_50 --misting-count base
 ```
 
 The default is `usc_osm_trimmed`, four misters, 13:00, and the `hot` scenario.

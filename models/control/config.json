@@ -1,5 +1,9 @@
 {
   "model_name": "control_model",
   "description": "Controls the existing state of campus actuators.",
-  "enabled": true
+  "enabled": true,
+  "parameters": {
+    "mist_on_utci_c": 35.0,
+    "mist_off_utci_c": 33.0
+  }
 }

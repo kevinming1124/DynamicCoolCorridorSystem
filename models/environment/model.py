@@ -2,14 +2,21 @@
 
 Owner: Aman. Built from ``models/_template`` following the team workflow.
 
-For one time of day and one weather scenario, this model writes five
+For one time of day and one weather scenario, this model writes seven
 properties onto every edge of the campus graph:
 
-    air_temp_f            air temperature after any misting cooling (F)
-    humidity_pct          relative humidity after any misting increase (%)
-    solar_radiation_wm2   open-sky sunlight at this time (W/m2)
-    shade_pct             share of the path in shade right now (%)
-    mist_cooling_f        cooling from nearby misters that are on (F)
+    air_temp_f              air temperature after any misting cooling (F)
+    humidity_pct            relative humidity after any misting increase (%)
+    solar_radiation_wm2     open-sky sunlight at this time (W/m2)
+    shade_pct               share of the path in shade right now (%)
+    mist_cooling_f          cooling from nearby misters that are on (F)
+    uncooled_air_temp_f     air temperature as if no mister were on (F)
+    uncooled_humidity_pct   relative humidity as if no mister were on (%)
+
+A mister cools an edge by its full strength times the share of the edge
+inside its circle. The pipeline first cuts walkways at the circle boundaries
+(``utils.graph.mist_zones``), so only the covered piece is cooled; see
+``_mist_cooling_for``.
 
 Inputs come from these places, so other models never call anything special:
 
@@ -34,6 +41,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Mapping
 
+from utils.graph.mist_zones import expand_split_ids, parent_edge_id
 from utils import (
     CampusGraph,
     DynamicPropertyValue,
@@ -50,6 +58,8 @@ PROJECT_ROOT = Path(__file__).parents[2]
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.json")
 DEFAULT_DATASET_PATH = PROJECT_ROOT / "dataset" / "usc_osm_trimmed"
 MODEL_DIR = Path(__file__).parent
+
+MIN_COVERAGE_RATIO = 1e-9
 
 REQUIRED_SCENARIO_FIELDS = (
     "temp_low_f",
@@ -240,6 +250,8 @@ class EnvironmentModel:
                 "base_humidity_pct": self._state["base_humidity_pct"],
                 "mist_range_m": self._parameter("mist_range_m"),
                 "mist_humidity_increase_pct": self._parameter("mist_humidity_increase_pct"),
+                "mist_cooling_rule": "strongest active mister's full cooling times the "
+                                     "covered share of the edge",
             },
         )
 
@@ -270,6 +282,8 @@ class EnvironmentModel:
             "solar_radiation_wm2": round(state["solar_radiation_wm2"], 2),
             "shade_pct": round(shade, 2),
             "mist_cooling_f": round(mist_cooling, 2),
+            "uncooled_air_temp_f": round(state["base_air_temp_f"], 2),
+            "uncooled_humidity_pct": round(state["base_humidity_pct"], 2),
         }
 
     # ------------------------------------------------------------------
@@ -325,7 +339,7 @@ class EnvironmentModel:
         scheduled_edges = set(schedule["edges"]) if schedule else set()
         auto_edges = [
             edge for edge in model_input.graph.edges
-            if edge.edge_id not in scheduled_edges
+            if parent_edge_id(edge.edge_id) not in scheduled_edges
         ]
 
         self._state = {
@@ -348,7 +362,8 @@ class EnvironmentModel:
             "auto_profiles": _auto_shade_profiles(
                 model_input.graph, auto_edges,
                 self._parameter("auto_shade_axis_ratio"),
-                self._walkway_segments(context.get("dataset_dir")),
+                [expand_split_ids(group, model_input.graph)
+                 for group in self._walkway_segments(context.get("dataset_dir"))],
             ),
             "scheduled_shade_edges": 0,
             "auto_shade_edges": 0,
@@ -363,9 +378,10 @@ class EnvironmentModel:
         """
         state = self._state
         schedule = state["shade_schedule"]
-        if schedule and edge_id in schedule["edges"]:
+        scheduled_id = parent_edge_id(edge_id)  # cut pieces share their walkway's entry
+        if schedule and scheduled_id in schedule["edges"]:
             state["scheduled_shade_edges"] += 1
-            profile = schedule["profiles"][schedule["edges"][edge_id]]
+            profile = schedule["profiles"][schedule["edges"][scheduled_id]]
             return float(profile[state["schedule_slot"]])
 
         state["auto_shade_edges"] += 1
@@ -373,24 +389,30 @@ class EnvironmentModel:
         return float(profile[_latest_slot(list(profile), state["hour"])])
 
     def _mist_cooling_for(self, edge: GraphEdge, graph: CampusGraph) -> float:
-        """Length-averaged cooling from active circular misting zones.
+        """Cooling from active misters on the covered share of this edge.
 
-        Each mister supplies full cooling inside its radius and zero outside.
-        Contributions retain the existing strongest-mister cap.
+        Each mister gives ``max_heat_reduction_f * covered share``. After the
+        pipeline cuts walkways at circle boundaries, an edge is either fully
+        inside (full cooling) or fully outside (none). An uncut edge that is
+        only partly covered gets the length-weighted average. When several
+        misters cover an edge, the strongest contribution counts; misters do
+        not stack.
         """
         if not self._state["misters_on"]:
             return 0.0
         start = graph.nodes[edge.from_node]
         end = graph.nodes[edge.to_node]
         mist_range = self._parameter("mist_range_m")
-        total = 0.0
-        for mister in self._state["misters_on"]:
-            coverage = _segment_circle_coverage_ratio(
-                mister.x_m, mister.y_m, mist_range,
-                start.x_m, start.y_m, end.x_m, end.y_m
-            )
-            total += (mister.max_heat_reduction_f or 0.0) * coverage
-        return min(total, self._state["max_mist_reduction_f"])
+        return max(
+            (
+                (mister.max_heat_reduction_f or 0.0) * _segment_circle_coverage_ratio(
+                    mister.x_m, mister.y_m, mist_range,
+                    start.x_m, start.y_m, end.x_m, end.y_m
+                )
+                for mister in self._state["misters_on"]
+            ),
+            default=0.0,
+        )
 
     def _load_scenarios(self) -> dict[str, dict[str, float]]:
         name = self.config.metadata.get("scenarios_file", "scenarios.json")
@@ -750,7 +772,10 @@ def _segment_circle_coverage_ratio(
     half_chord = math.sqrt(half_chord_squared)
     covered = max(0.0, min(length, projection + half_chord)
                   - max(0.0, projection - half_chord))
-    return min(1.0, covered / length)
+    ratio = min(1.0, covered / length)
+    # A piece cut exactly at the circle boundary can show a rounding-error
+    # sliver of coverage; treat it as outside.
+    return 0.0 if ratio < MIN_COVERAGE_RATIO else ratio
 
 
 def _parse_arguments():
@@ -808,9 +833,12 @@ def _summary(output: ModelOutput) -> str:
 if __name__ == "__main__":
     arguments = _parse_arguments()
     model = EnvironmentModel.from_config()
+    from utils.graph.mist_zones import split_edges_at_mist_zones
+
     graph = _graph_with_misters_on(
         load_campus_graph(arguments.dataset), arguments.mister_on
     )
+    graph, _ = split_edges_at_mist_zones(graph, model.config.parameters["mist_range_m"])
     context = {"dataset_dir": str(arguments.dataset)}
     if arguments.scenario:
         context["scenario"] = arguments.scenario

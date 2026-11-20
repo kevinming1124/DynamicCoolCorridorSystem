@@ -6,13 +6,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from main import run_simulation
-from models.environment.model import ModelConfig as EnvironmentConfig
+from main import load_simulation_graph, run_simulation
 from models.routing import load_trip_requests
 from models.verification.model import VerificationModel
 from models.verification.checks import RouteNetwork
 from utils import ModelInput, load_campus_graph
-from utils.graph.misting_scenarios import apply_misting_scenario
 
 
 class TestVerification(unittest.TestCase):
@@ -28,8 +26,7 @@ class TestVerification(unittest.TestCase):
         with patch.object(VerificationModel, "predict", capture), contextlib.redirect_stdout(io.StringIO()):
             dataset = Path(__file__).resolve().parents[2] / "dataset" / "usc_osm_trimmed"
             trips = dataset.parents[1] / "models" / "routing" / "example_signal_trips.json"
-            radius = EnvironmentConfig.from_file().parameters["mist_range_m"]
-            graph, layout = apply_misting_scenario(load_campus_graph(dataset), dataset, 4, radius)
+            graph, layout, _ = load_simulation_graph(dataset, 4)
             cls.result = run_simulation(
                 graph, rounds=3, dataset_directory=dataset,
                 trip_requests=load_trip_requests(trips),
@@ -44,7 +41,8 @@ class TestVerification(unittest.TestCase):
     def test_usc_pipeline_and_arrival_history(self):
         output = self.result
         self.assertEqual(output.diagnostics["misting_scenario"]["misting_count"], 4)
-        self.assertEqual(len(output.graph.edges), 930)
+        self.assertEqual(len(output.graph.edges), len(load_simulation_graph(
+            Path(__file__).resolve().parents[2] / "dataset" / "usc_osm_trimmed", 4)[0].edges))
         self.assertEqual(len(self.inputs), 3)
         self.assertEqual(output.diagnostics["verification"]["simulation_status"], "PASS")
         self.assertEqual(len(output.diagnostics["verification"]["round_history"]), 3)

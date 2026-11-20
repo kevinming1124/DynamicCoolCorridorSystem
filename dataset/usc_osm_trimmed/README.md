@@ -42,7 +42,9 @@ comparison maps. The first two retain the original mister locations; added
 locations favor junctions on shortest paths between building entrances, with
 spatial separation. This heuristic is not based on measured pedestrian demand
 or a proven optimal layout. All use the environment's 10 m default radius.
-Zero removes all misters. Signals remain identical across scenarios, and the
+Zero removes all misters. At startup the pipeline cuts walkways where they cross
+the selected misters' circles (17 walkways for four misters, 49 for ten) so only
+the covered piece is cooled; the JSON files are not rewritten. Signals remain identical across scenarios, and the
 base dataset files are never rewritten. Omit the option to retain the original
 two misters. Run metadata records selected placements in every stage's output.
 

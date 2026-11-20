@@ -9,7 +9,7 @@
         "y_m": 360.1425625262782
       },
       "parameters": {
-        "max_heat_reduction_f": 5.4
+        "max_heat_reduction_f": 10.8
       },
       "edge_relationships": [],
       "description": "Hypothetical experiment mister at Leavey Library; not a surveyed installation"
@@ -23,7 +23,7 @@
         "y_m": 306.6084691383876
       },
       "parameters": {
-        "max_heat_reduction_f": 5.4
+        "max_heat_reduction_f": 10.8
       },
       "edge_relationships": [],
       "description": "Hypothetical experiment mister at Seeley G. Mudd Building; not a surveyed installation"

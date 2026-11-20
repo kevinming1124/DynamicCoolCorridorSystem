@@ -139,7 +139,8 @@ simulator, trip_requests and dataset_directory explicitly.
 
 Agents retain their assigned routes throughout a trip. Crowd collision handling
 and accumulated individual heat are not implemented. Environment time/weather
-remain fixed while walking/waiting advance. Debug snapshots can be saved, but
+remain fixed while walking/waiting advance, unless `main.py --time-range`
+advances the clock. Debug snapshots can be saved, but
 there is no saved-state resume loader. See the
 [routing guide](../routing/README.md#verification-policy-and-remaining-limitations)
 for route policy and travel estimates, and the [control guide](../control/README.md)

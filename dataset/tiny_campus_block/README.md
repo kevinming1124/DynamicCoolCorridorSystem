@@ -1,5 +1,9 @@
 # Tiny campus block dataset
 
+> Not used by the pipeline, demos or tests. The project runs only on
+> `dataset/usc_osm_trimmed`; this dataset is kept for reference and as the
+> schema guide.
+
 This fictional dataset describes a walkable campus block as an undirected graph.
 It is intentionally small enough for development examples.
 

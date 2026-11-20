@@ -3,7 +3,7 @@
 Owner: Aman
 
 This model creates the weather on the campus. For one time of day and one
-weather scenario, it writes five values onto **every edge** of the campus
+weather scenario, it writes seven values onto **every edge** of the campus
 graph. Heat Exposure reads these values to calculate UTCI and heat flags;
 Control and Routing consume those heat outputs. Verification audits the
 environmental and heat evidence.
@@ -15,7 +15,7 @@ The full pipeline also requires the packages in the root `requirements.txt`.
 
 ## What it outputs
 
-Every edge gets these five properties:
+Every edge gets these seven properties:
 
 | Property | Unit | Meaning |
 | --- | --- | --- |
@@ -24,11 +24,15 @@ Every edge gets these five properties:
 | `solar_radiation_wm2` | W/m2 | Open-sky sunlight at this time (not reduced by shade) |
 | `shade_pct` | % | How much of the path is in shade right now, 0-100 |
 | `mist_cooling_f` | F | How much misters cooled this path (0 when none are on) |
+| `uncooled_air_temp_f` | F | Air temperature as if no mister were on |
+| `uncooled_humidity_pct` | % | Relative humidity as if no mister were on |
 
 Sunlight and shade are kept separate on purpose, so the heat exposure model can
 decide how to combine them. The cooling from misters is already subtracted from
 `air_temp_f`; `mist_cooling_f` is reported separately so its effect is easy to
-see and evaluate.
+see and evaluate. The two uncooled values let Heat Exposure report the heat
+without misting, which Control uses to switch misters without reacting to their
+own cooling.
 
 These names and units define the current output interface.
 
@@ -102,19 +106,25 @@ source-walkway grouping. Calls without it use automatic shade per graph edge;
 there is no implicit campus_50 fallback. The output diagnostics report `shade_source`,
 `edges_with_scheduled_shade`, and `edges_with_auto_shade`.
 
-**Misting** uses a circular zone with radius `mist_range_m` (10 m) around each
-active mister. Full cooling applies inside the zone and zero outside; there is
-no distance decay. The edge-average cooling contribution is
-`max_heat_reduction_f * (covered length / total length)`. For example, 32%
-coverage gives 32% of the mister's full cooling. Coverage uses the straight
-segment between endpoint coordinates, independently of its stored travel distance.
-Tangencies and zero-length segments contribute zero. Temperature and heat stress
-remain edge averages rather than separate values inside/outside the zone.
+**Misting** cools only the part of a walkway inside a mister's circle (radius
+`mist_range_m`, 10 m). Before the simulation starts, the pipeline cuts every
+walkway where it crosses a mister's circle (`utils/graph/mist_zones.py`). An
+82 m walkway with 11 m inside the circle becomes three pieces: the 11 m inside
+piece and the two outside pieces. Pieces are named `<walkway>~1`, `~2`, ... in
+walking order, and each keeps its walkway's shade profile.
 
-Contributions add and retain the existing strongest-active-mister cap; this is
-not a physical overlap model. Use nonoverlapping zones for the demonstration.
-Misting also raises humidity by up to `mist_humidity_increase_pct` (5%), scaled
-by the resulting cooling relative to the strongest active mister's full cooling.
+Each edge then gets `max_heat_reduction_f` (currently 10.8 F) times the share
+of the edge inside the circle. After cutting, that share is 1 for inside pieces
+(full cooling) and 0 for the rest. There is no distance decay. Tangencies,
+endpoint-only contact and zero-length segments count as outside. A graph that
+was not cut (for example a hand-built test graph) gets the length-weighted
+average instead.
+
+The cuts use every mister on the map, on or off, so the graph stays the same
+while misters switch during a run. When several active misters cover an edge,
+the strongest contribution counts; misters do not stack. Misting also raises
+humidity by up to `mist_humidity_increase_pct` (5%), scaled by the edge's
+cooling relative to the strongest active mister's full cooling.
 
 At this stage, temperature, humidity, and sunlight are the same on every edge;
 edges differ through shade and misting.
@@ -126,12 +136,24 @@ Defined in `scenarios.json`:
 | Scenario | Low / high temp (F) | Humidity (morning / afternoon) | Sky |
 | --- | --- | --- | --- |
 | `mild` | 62 / 80 | 70% / 40% | partly cloudy (0.8) |
+| `warm` | 70 / 90 | 60% / 25% | clear (1.0) |
 | `hot` | 72 / 98 | 60% / 25% | clear (1.0) |
 | `extreme_heat` | 80 / 110 | 45% / 15% | clear (1.0) |
 | `humid` | 75 / 92 | 90% / 60% | mostly clear (0.9) |
 
 To add a scenario, add an entry with the same five fields. No code changes are
 needed.
+
+`warm` is for watching misters switch both ways in one run. Near the misters,
+uncooled UTCI reaches Control's 35 C on-threshold around 12:30, peaks near
+36 C at 14:00, and drops below the 33 C off-threshold around 17:30:
+
+```powershell
+python main.py --time-range 08:00-18:00 --scenario warm --misting-count 4
+```
+
+On `hot` and hotter days the heat stays above 33 C until after 17:00, so
+misters stay on through an 08:00-17:00 run.
 
 ## Run it on its own
 
@@ -156,8 +178,7 @@ python -m models.environment.model --time 13:00 --save debug/environment_1300.js
 `--mister-on` turns misters on for a quick test, the same way the control model
 would. `--day` prints campus averages for every 30-minute step from 08:00 to
 18:00. `--save` writes the complete output, including every edge, to a JSON
-file. It also runs on the tiny dataset with
-`--dataset dataset/tiny_campus_block` (using automatic shade profiles there).
+file. The standalone run cuts walkways at mist circles the same way the pipeline does.
 
 ## Use it from other code
 
@@ -185,9 +206,13 @@ and how many edges used scheduled or automatic shade.
 ## Connecting it to the pipeline
 
 `main.py` already runs Environment during initialization and each simulation
-round, passing the selected dataset folder through `dataset_dir`. Time stays
-fixed during a simulation run. Use the standalone `--day` option to inspect
-shade and weather at successive times of day.
+round, passing the selected dataset folder through `dataset_dir`. With
+`--time`, time stays fixed during a run. With `main.py --time-range` (default
+08:00-17:00), the runner sets `context["time"]` each round, refreshing every
+`--env-update-min` minutes (default 30), so weather, sunlight and building shade
+change through the day. Nothing changes inside this model: it still computes one
+time per call. Use the standalone `--day` option to inspect shade and weather at
+successive times of day without running the rest of the pipeline.
 
 ## Files
 

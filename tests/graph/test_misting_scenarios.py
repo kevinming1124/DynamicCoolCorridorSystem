@@ -34,15 +34,15 @@ class TestMistingScenarios(unittest.TestCase):
             self.assertEqual(len(metadata["placements"]), count)
             self.assertEqual(metadata["mist_range_m"], 10)
             self.assertTrue(all(a.properties["status"] == "off" for a in misters.values()))
-            self.assertTrue(all(a.max_heat_reduction_f == 5.4 for a in misters.values()))
+            self.assertTrue(all(a.max_heat_reduction_f == 10.8 for a in misters.values()))
         self.assertEqual(self.graph.as_dict(), original)
 
     def test_rejects_invalid_count_missing_config_anchor_and_overlap(self):
         for count in (2, True, 4.0):
             with self.subTest(count=count), self.assertRaises(ValueError):
                 apply_misting_scenario(self.graph, DATASET, count, 10)
-        with self.assertRaisesRegex(ValueError, "Cannot load"):
-            apply_misting_scenario(self.graph, DATASET.parent / "tiny_campus_block", 4, 10)
+        with tempfile.TemporaryDirectory() as directory, self.assertRaisesRegex(ValueError, "Cannot load"):
+            apply_misting_scenario(self.graph, Path(directory), 4, 10)
         with self.assertRaisesRegex(ValueError, "anchor"):
             apply_misting_scenario(replace(self.graph, nodes={}), DATASET, 4, 10)
         with self.assertRaisesRegex(ValueError, "overlap"):

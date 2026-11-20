@@ -1,7 +1,7 @@
 {
   "dataset_id": "usc_osm_trimmed",
   "description": "Nested hypothetical placements for comparative simulation; not surveyed hardware or optimized demand-based locations.",
-  "max_heat_reduction_f": 5.4,
+  "max_heat_reduction_f": 10.8,
   "placements": [
     {"actuator_id": "SIM_M1", "anchor_node": "U000237", "description": "Leavey Library"},
     {"actuator_id": "SIM_M2", "anchor_node": "U000270", "description": "Seeley G. Mudd"},

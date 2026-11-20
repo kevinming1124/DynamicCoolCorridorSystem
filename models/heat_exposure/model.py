@@ -173,12 +173,34 @@ class HeatExposureModel:
         walking_exposure = exposure_rate * edge.walk_time_min
         unsafe = 1.0 if utci_c >= self._parameter("unsafe_utci_c") else 0.0
 
+        # Heat as if no mister were on, so Control can decide misting without
+        # reacting to its own cooling. Shade and sunlight are unaffected by mist.
+        if (inputs["uncooled_air_temp_f"] == inputs["air_temp_f"]
+                and inputs["uncooled_humidity_pct"] == inputs["humidity_pct"]):
+            uncooled_utci_c = utci_c
+        else:
+            uncooled_air_temp_c = fahrenheit_to_celsius(inputs["uncooled_air_temp_f"])
+            uncooled_utci_c = calculate_utci_c(
+                air_temp_c=uncooled_air_temp_c,
+                tmrt_c=estimate_tmrt_c(
+                    air_temp_c=uncooled_air_temp_c,
+                    solar_radiation_wm2=inputs["solar_radiation_wm2"],
+                    shade_pct=inputs["shade_pct"],
+                    shortwave_absorptivity=self._parameter("shortwave_absorptivity"),
+                    projected_area_factor=self._parameter("projected_area_factor"),
+                    body_emissivity=self._parameter("body_emissivity"),
+                ),
+                wind_speed_10m_mps=self._parameter("assumed_wind_speed_10m_mps"),
+                humidity_pct=inputs["uncooled_humidity_pct"],
+            )
+
         return {
             "tmrt_c": round(tmrt_c, 2),
             "utci_c": round(utci_c, 2),
             "heat_exposure_rate": round(exposure_rate, 2),
             "walking_heat_exposure": round(walking_exposure, 2),
             "unsafe_heat": unsafe,
+            "uncooled_utci_c": round(uncooled_utci_c, 2),
         }
 
     def calculate_node(self, node: GraphNode, graph: CampusGraph) -> Mapping[str, float]:
@@ -350,8 +372,12 @@ def run_standalone(
             identifier: "on" if identifier in mister_ids else actuator.properties.get("status")
             for identifier, actuator in graph.actuators.items()
         })
+    from utils.graph.mist_zones import split_edges_at_mist_zones
+
+    environment = EnvironmentModel.from_config()
+    graph, _ = split_edges_at_mist_zones(graph, environment.config.parameters["mist_range_m"])
     context = {"dataset_dir": str(dataset), "time": time, "scenario": scenario}
-    environment_output = EnvironmentModel.from_config().predict(
+    environment_output = environment.predict(
         ModelInput(graph=graph, context=context)
     )
     output = HeatExposureModel.from_config().predict(

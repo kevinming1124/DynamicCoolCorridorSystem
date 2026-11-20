@@ -47,7 +47,7 @@ From the project root:
 python -m models._template.model
 ```
 
-By default, the example loads `dataset/tiny_campus_block`. It validates unique
+By default, the example loads `dataset/usc_osm_trimmed`. It validates unique
 node and edge IDs, edge endpoints, numeric values, booleans, and distances before
 calculating results.
 
@@ -115,7 +115,7 @@ Every output contains the updated graph. Pass it directly to the next model:
 ```python
 from utils import ModelInput, load_campus_graph
 
-graph = load_campus_graph("dataset/tiny_campus_block")
+graph = load_campus_graph("dataset/usc_osm_trimmed")
 first_output = first_model.predict(ModelInput(graph=graph))
 second_input = first_output.to_model_input()
 second_output = second_model.predict(second_input)
@@ -132,7 +132,7 @@ Saving is explicit so normal model runs do not create files unexpectedly:
 ```python
 from utils import ModelInput, load_campus_graph
 
-graph = load_campus_graph("dataset/tiny_campus_block")
+graph = load_campus_graph("dataset/usc_osm_trimmed")
 output = model.predict(ModelInput(graph=graph))
 saved_path = output.save_json("debug/model_output.json")
 ```

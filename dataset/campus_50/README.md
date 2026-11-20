@@ -1,5 +1,8 @@
 # campus_50 dataset
 
+> Not used by the pipeline, demos or tests. The project runs only on
+> `dataset/usc_osm_trimmed`; this dataset is kept for reference.
+
 Owner: Aman (Environment Model)
 
 This is a synthetic campus dataset available to the Dynamic Cool Corridors simulation:
@@ -77,7 +80,7 @@ See `nodes.json` for exact node IDs and coordinates.
 ## Actuators
 
 **Misting points** (`A01`-`A04`) sit at McCarthy Quad, Alumni Park, Ronald
-Tutor Campus Center, and the Expo Park/USC Metro Station. Each can cool by up to 5.4 F. Following the
+Tutor Campus Center, and the Expo Park/USC Metro Station. Each can cool by up to 10.8 F. Following the
 shared actuator rules, misting points are tied to a location, not to edges. The
 environment model decides which edges a mister cools based on distance from the
 mister's coordinates.
@@ -162,6 +165,8 @@ schedule and produces these properties for every edge at the requested time
 | `solar_radiation_wm2` | Sun strength in W/m2 |
 | `shade_pct` | Shade percent from `shade_schedule.json` |
 | `mist_cooling_f` | Cooling from nearby misters (0 when none are on) |
+| `uncooled_air_temp_f` | Air temperature as if no mister were on |
+| `uncooled_humidity_pct` | Relative humidity as if no mister were on |
 
 Environment does not produce a wind property. Heat Exposure uses a constant
 assumed wind speed at 10 m, configured by `assumed_wind_speed_10m_mps`

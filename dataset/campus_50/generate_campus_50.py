@@ -37,7 +37,7 @@ SPACING_Y_M = 50.0       # north-south distance between neighboring nodes
 DIAGONAL_COUNT = 15      # 85 grid edges + 15 diagonals = 100 edges
 WALK_SPEED_M_S = 1.4     # same walking speed as tiny_campus_block
 
-MISTER_MAX_REDUCTION_F = 5.4
+MISTER_MAX_REDUCTION_F = 10.8
 SIGNAL_COUNT = 6
 SIGNAL_WAIT_S = {"default": 30, "min": 10, "max": 90}
 

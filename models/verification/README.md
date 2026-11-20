@@ -48,7 +48,7 @@ Missing or malformed required evidence raises an explicit input error.
 | Producer | Required evidence |
 | --- | --- |
 | Heat Exposure | Complete edge `utci_c`, `unsafe_heat`, `heat_exposure_rate`; diagnostic `unsafe_utci_c`, `reference_utci_c` |
-| Environment | Complete edge `air_temp_f`, `humidity_pct`, `mist_cooling_f`; diagnostics `base_air_temp_f`, `base_humidity_pct`, `mist_range_m`, `mist_humidity_increase_pct` |
+| Environment | Complete edge `air_temp_f`, `humidity_pct`, `mist_cooling_f`, `uncooled_air_temp_f`, `uncooled_humidity_pct`; diagnostics `base_air_temp_f`, `base_humidity_pct`, `mist_range_m`, `mist_humidity_increase_pct` |
 | Routing | `all_assigned_routes` including destination entrances, `pending_requests` with resolved endpoints and speed, `pending_trip_ids`, `already_at_destination_ids`; optional numeric edge `blocked` |
 | Pedestrian | Before/after snapshots with routes, progress, speeds, states, walking/wait totals, countdowns and sampled departures; requested timestep |
 
@@ -74,10 +74,12 @@ exposure/time Dijkstra for the fallback.
 
 Actuator verification checks the effects actually implemented:
 
-- Misting: on/off state, segment-circle covered-length fraction, configured
-  influence radius, coverage-scaled cooling without distance decay,
-  additive contributions capped by the strongest active mister, rounded
-  cooling and air temperature, and the implemented humidity increase/clamp.
+- Misting: on/off state, each segment's covered share of each circle within the
+  configured radius, cooling equal to full strength times that share (1 inside
+  the pre-cut pieces, 0 outside) with the strongest mister counting and no
+  stacking or distance decay, rounded cooling and air temperature, the
+  implemented humidity increase/clamp, and uncooled air temperature and
+  humidity equal to the base weather.
 - Signals: operating bounds and independent before/after movement accounting.
   Waits apply at controlled departures; co-located signals use their maximum.
   Existing countdowns are retained across command changes. Walking, waiting,

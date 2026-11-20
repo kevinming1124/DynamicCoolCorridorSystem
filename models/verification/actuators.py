@@ -21,7 +21,9 @@ def segment_circle_coverage(x, y, radius, start, end):
     root = math.sqrt(discriminant)
     entry = (-b - root) / (2.0 * length_squared)
     exit = (-b + root) / (2.0 * length_squared)
-    return max(0.0, min(1.0, exit) - max(0.0, entry))
+    ratio = max(0.0, min(1.0, exit) - max(0.0, entry))
+    # Pieces cut exactly at a circle boundary can show a rounding sliver.
+    return 0.0 if ratio < 1e-9 else ratio
 
 
 def audit_actuators(network, environment, before, after, dt, tolerance):
@@ -52,16 +54,18 @@ def audit_actuators(network, environment, before, after, dt, tolerance):
     maximum = max((a.max_heat_reduction_f for a in on_misters), default=0.0)
     for edge in graph.edges:
         start, end = graph.nodes[edge.from_node], graph.nodes[edge.to_node]
-        total = 0.0
-        for actuator in on_misters:
-            coverage = segment_circle_coverage(
-                actuator.x_m, actuator.y_m, radius, start, end)
-            total += actuator.max_heat_reduction_f * coverage
-        cooling = min(total, maximum)
+        # Full cooling times the covered share; strongest contribution counts,
+        # misters do not stack. Walkways are pre-cut at circle boundaries.
+        cooling = max((actuator.max_heat_reduction_f
+                       * segment_circle_coverage(actuator.x_m, actuator.y_m, radius, start, end)
+                       for actuator in on_misters),
+                      default=0.0)
         humidity = base_humidity + (humidity_increase * cooling / maximum if maximum > 0 else 0.0)
         expected = {"mist_cooling_f": round(cooling, 2),
                     "air_temp_f": round(base_temp - cooling, 2),
-                    "humidity_pct": round(min(100.0, max(0.0, humidity)), 2)}
+                    "humidity_pct": round(min(100.0, max(0.0, humidity)), 2),
+                    "uncooled_air_temp_f": round(base_temp, 2),
+                    "uncooled_humidity_pct": round(base_humidity, 2)}
         for name, value in expected.items():
             actual = number(edge.properties.get(name), f"{edge.edge_id}.{name}")
             if not math.isclose(actual, value, rel_tol=0.0, abs_tol=tolerance):

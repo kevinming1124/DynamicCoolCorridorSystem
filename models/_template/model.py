@@ -27,7 +27,7 @@ from utils import (
 
 PROJECT_ROOT = Path(__file__).parents[2]
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.json")
-DEFAULT_DATASET_PATH = PROJECT_ROOT / "dataset" / "tiny_campus_block"
+DEFAULT_DATASET_PATH = PROJECT_ROOT / "dataset" / "usc_osm_trimmed"
 
 
 @dataclass(frozen=True)

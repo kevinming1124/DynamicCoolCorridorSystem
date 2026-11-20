@@ -12,12 +12,12 @@ It describes the current implementation and how to extend the project.
 - Initialization: Environment -> Heat Exposure, once per simulation
 - Round stages: Control -> Environment -> Heat Exposure -> Routing -> Pedestrian -> Verification (`--rounds`, default 1)
 - One persistent simulator and routingc stage; trip requests via `--trips` or legacy `--routes` endpoints
-- Pedestrian timestep: `--pedestrian-dt`, default one second per round
-- Environment time and scenario stay fixed; pedestrian elapsed seconds advance separately
+- Pedestrian timestep: `--pedestrian-dt`, default one second per round (60 s with `--time-range`)
+- Clock: `--time` holds environment time fixed (default 12:00). `--time-range [HH:MM-HH:MM]` (default 08:00-17:00) advances the clock by the timestep each round and refreshes Environment every `--env-update-min` minutes (default 30); `main.build_time_schedule` gives each round's time. The scenario stays fixed in both modes.
 - Each round receives the previous round's graph
-- Default dataset: `usc_osm_trimmed` (real OSM geometry, assumed simulation inputs); legacy datasets remain available
+- Dataset: only `usc_osm_trimmed` (real OSM geometry, assumed simulation inputs) is run and tested; `campus_50` and `tiny_campus_block` are kept for reference only
 - Optional `--misting-count 0|4|6|10` loads nested USC placements from `misting_scenarios.json` without copying the map; omission retains original actuators. Every stage records the explicit selection in `diagnostics.misting_scenario`.
-- Misting uses a 10 m radius and covered-length fraction times full cooling, without distance decay. Scenario startup validates anchors and rejects touching/overlapping circles.
+- Misting uses a 10 m radius. `main.load_simulation_graph` cuts walkways at every mister's circle (`utils/graph/mist_zones.py`), so only the inside piece gets the full 10.8 F; the rest gets none. No stacking or distance decay. Environment also outputs uncooled air temperature and humidity, Heat Exposure turns them into `uncooled_utci_c`, and Control switches misters on at 35 C and off below 33 C of that uncooled UTCI. Scenario startup validates anchors and rejects touching/overlapping circles.
 - Coordinates: local `x_m` and `y_m` values in meters
 - Automated model and graph utility tests live under `tests/`; see `tests/README.md` for coverage and known gaps
 
@@ -394,7 +394,8 @@ and accessibility assumptions must be disclosed; they are not surveyed data.
 is interpreted as demand endpoints and recomputed; direct simulator fixed-route
 APIs are unchanged. See the routing README for matching dataset commands.
 
-Environment time remains fixed; --pedestrian-dt advances walking and signal waiting.
+Environment time stays fixed with --time and follows the clock with --time-range;
+--pedestrian-dt advances walking and signal waiting.
 Signal waits execute at controlled departures; see the model guides for current
 movement and control behavior.
 

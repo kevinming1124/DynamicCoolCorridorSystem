@@ -9,7 +9,7 @@
         "y_m": 150.0
       },
       "parameters": {
-        "max_heat_reduction_f": 5.4
+        "max_heat_reduction_f": 10.8
       },
       "edge_relationships": [],
       "description": "McCarthy Quad misting point for localized heat reduction"
@@ -23,7 +23,7 @@
         "y_m": 50.0
       },
       "parameters": {
-        "max_heat_reduction_f": 5.4
+        "max_heat_reduction_f": 10.8
       },
       "edge_relationships": [],
       "description": "Alumni Park misting point for localized heat reduction"
@@ -37,7 +37,7 @@
         "y_m": 100.0
       },
       "parameters": {
-        "max_heat_reduction_f": 5.4
+        "max_heat_reduction_f": 10.8
       },
       "edge_relationships": [],
       "description": "Ronald Tutor Campus Center misting point for localized heat reduction"
@@ -51,7 +51,7 @@
         "y_m": 0.0
       },
       "parameters": {
-        "max_heat_reduction_f": 5.4
+        "max_heat_reduction_f": 10.8
       },
       "edge_relationships": [],
       "description": "Expo Park/USC Metro Station misting point for localized heat reduction"

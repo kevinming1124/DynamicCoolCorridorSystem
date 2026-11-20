@@ -1,6 +1,6 @@
 {
   "model_name": "environment_model",
-  "description": "Calculates air temperature, humidity, solar radiation, shade, and misting cooling on every edge for one time of day.",
+  "description": "Calculates air temperature, humidity, solar radiation, shade, misting cooling, and uncooled temperature and humidity on every edge for one time of day.",
   "enabled": true,
   "property_target": "edge",
   "output_properties": [
@@ -8,7 +8,9 @@
     "humidity_pct",
     "solar_radiation_wm2",
     "shade_pct",
-    "mist_cooling_f"
+    "mist_cooling_f",
+    "uncooled_air_temp_f",
+    "uncooled_humidity_pct"
   ],
   "input_properties": [],
   "parameters": {

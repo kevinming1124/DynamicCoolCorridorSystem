@@ -8,13 +8,16 @@
     "utci_c",
     "heat_exposure_rate",
     "walking_heat_exposure",
-    "unsafe_heat"
+    "unsafe_heat",
+    "uncooled_utci_c"
   ],
   "input_properties": [
     "air_temp_f",
     "humidity_pct",
     "solar_radiation_wm2",
-    "shade_pct"
+    "shade_pct",
+    "uncooled_air_temp_f",
+    "uncooled_humidity_pct"
   ],
   "parameters": {
     "reference_utci_c": 26.0,

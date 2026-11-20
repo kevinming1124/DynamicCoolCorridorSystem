@@ -16,7 +16,8 @@ DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.json")
 OUTPUTS = ("verification_route_selection_valid", "verification_bounded_arrival_valid",
            "verification_fallback_valid", "verification_actuator_response_valid",
            "verification_overall_valid")
-INPUTS = ("utci_c", "unsafe_heat", "heat_exposure_rate", "air_temp_f", "humidity_pct", "mist_cooling_f")
+INPUTS = ("utci_c", "unsafe_heat", "heat_exposure_rate", "air_temp_f", "humidity_pct", "mist_cooling_f",
+          "uncooled_air_temp_f", "uncooled_humidity_pct")
 
 
 @dataclass(frozen=True)

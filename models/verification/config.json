@@ -11,7 +11,8 @@
     "verification_overall_valid"
   ],
   "input_properties": [
-    "utci_c", "unsafe_heat", "heat_exposure_rate", "air_temp_f", "humidity_pct", "mist_cooling_f"
+    "utci_c", "unsafe_heat", "heat_exposure_rate", "air_temp_f", "humidity_pct", "mist_cooling_f",
+    "uncooled_air_temp_f", "uncooled_humidity_pct"
   ],
   "parameters": {
     "maximum_arrival_ratio": 2.5,
