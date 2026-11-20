@@ -10,7 +10,8 @@
     "shade_pct",
     "mist_cooling_f",
     "uncooled_air_temp_f",
-    "uncooled_humidity_pct"
+    "uncooled_humidity_pct",
+    "local_temp_offset_f"
   ],
   "input_properties": [],
   "parameters": {
@@ -23,6 +24,29 @@
     "auto_shade_axis_ratio": 2.0
   },
   "metadata": {
+    "local_temperature": {
+      "description": "Fixed air-temperature offset per walkway from its OSM surface and nearby features (dataset surroundings file). Simulation assumptions, not measurements.",
+      "surface_offsets_f": {
+        "asphalt": 1.5,
+        "paved": 1.0,
+        "concrete": 0.5,
+        "concrete:plates": 0.5,
+        "paving_stones": 0.5,
+        "artificial_turf": 1.5,
+        "untagged": 0.0,
+        "unmatched": 0.0
+      },
+      "nearby_rules": [
+        {"name": "trees", "feature": "tree_m", "within_m": 10.0, "offset_f": -1.5},
+        {"name": "grass_or_park", "feature": "green_m", "within_m": 10.0, "offset_f": -1.0},
+        {"name": "fountain", "feature": "fountain_m", "within_m": 15.0, "offset_f": -0.5},
+        {"name": "parking_lot", "feature": "parking_m", "within_m": 10.0, "offset_f": 1.0},
+        {"name": "major_road", "feature": "major_road_m", "within_m": 10.0, "offset_f": 1.0},
+        {"name": "open_plaza", "feature": "building_m", "beyond_m": 20.0, "offset_f": 1.0}
+      ],
+      "min_offset_f": -3.0,
+      "max_offset_f": 3.0
+    },
     "default_time": "12:00",
     "default_scenario": "hot",
     "scenarios_file": "scenarios.json",

@@ -52,6 +52,23 @@ class Segment:
         return self.edge.properties["unsafe_heat"] == 0.0
 
 
+POLICY_VIOLATION_MESSAGE = "Selected route does not satisfy the safe-first/coolest-fallback policy"
+FALLBACK_RANKING = ("cumulative_exposure_degree_min", "maximum_exposure_rate_c", "travel_time_s")
+
+
+def lexicographically_worse(candidate, reference, keys, tolerance):
+    """True when candidate ranks after reference on the first key that differs.
+
+    Values within ``tolerance`` count as equal, so a candidate that ties the
+    reference on every key, or wins on a later key after ties, is not worse.
+    """
+    for key in keys:
+        if math.isclose(candidate[key], reference[key], rel_tol=0.0, abs_tol=tolerance):
+            continue
+        return candidate[key] > reference[key]
+    return False
+
+
 def metrics(segments):
     return {
         "maximum_exposure_rate_c": max((s.rate for s in segments), default=0.0),
@@ -215,18 +232,18 @@ def audit_route(network, person, monitor, maximum_ratio, tolerance, destinations
         selection_valid = route_safe and not violations
         record["reason"] = "safe_route_required"
     else:
-        bottleneck_tail = network.search(start, destination, speed, mode="bottleneck")
-        ceiling = metrics(prefix + bottleneck_tail)["maximum_exposure_rate_c"]
-        optimal_tail = network.search(start, destination, speed, mode="exposure", ceiling=ceiling)
+        # Coolest fallback: least cumulative exposure, then the lower hottest
+        # segment, then shorter travel time. Additive Dijkstra minimizes
+        # (exposure, time); the hottest segment only breaks exact exposure ties.
+        optimal_tail = network.search(start, destination, speed, mode="exposure")
         optimal = metrics(prefix + optimal_tail)
-        keys = ("maximum_exposure_rate_c", "cumulative_exposure_degree_min", "travel_time_s")
-        selection_valid = not violations and all(
-            math.isclose(selected[k], optimal[k], rel_tol=0.0, abs_tol=tolerance) for k in keys)
+        selection_valid = not violations and not lexicographically_worse(
+            selected, optimal, FALLBACK_RANKING, tolerance)
         record.update(fallback_status=PASS if selection_valid else FAIL,
                       optimal_fallback={**optimal, "edge_ids": [s.edge.edge_id for s in prefix + optimal_tail]},
                       reason="coolest_fallback_required")
     if not selection_valid:
-        violations.append("Selected route does not satisfy the safe-first/coolest-fallback policy")
+        violations.append(POLICY_VIOLATION_MESSAGE)
     externally_paused = person["state"] == "waiting" and person["signal_wait_remaining_sec"] == 0
     if not arrival_valid and not externally_paused:
         violations.append("Remaining journey exceeds the independent arrival bound")

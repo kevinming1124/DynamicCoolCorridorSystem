@@ -151,7 +151,7 @@ the graph produced by the previous stage, including accumulated properties.
 
 Verification audits every round without changing routes, commands, or movement.
 It requires a safe route whenever one exists; otherwise it checks the coolest
-fallback by maximum exposure, cumulative exposure, then travel time. The 2.5x
+fallback by cumulative exposure, then hottest segment, then travel time. The 2.5x
 arrival bound is checked independently and never restricts route selection.
 All checks use current conditions; there is no heat prediction or forecast input.
 
@@ -163,8 +163,9 @@ python -m unittest tests.verification.test_model
 
 Per-pedestrian results, actuator checks and round history are in
 `diagnostics.verification`, saved as `round_001/06_requirements_verification.json`
-when debugging is enabled. Existing routing can fail these audit requirements;
-verification does not enforce them. See
+when debugging is enabled. Routing now follows the same safe-first and
+coolest-fallback policy and replans walking pedestrians; verification still
+audits it independently and never changes routes. See
 [`models/verification/README.md`](models/verification/README.md) for scope,
 input evidence, result codes and commands.
 
@@ -199,8 +200,8 @@ python main.py --trips models/routing/example_trips.json --rounds 15 --pedestria
 ```
 
 Routingc computes paths before Pedestrian moves. The example requests two
-Leavey → SGM trips with preferences 0 and 1; they are assigned once and retain
-progress between rounds. Without --trips, config requests four trips once.
+Leavey → SGM trips with preferences 0 and 1; they are assigned once, retain
+progress between rounds, and have their remaining route re-checked each round. Without --trips, config requests four trips once.
 Routing diagnostics are saved as `round_001/04_routingc_model.json`; movement
 snapshots are in `05_pedestrian_simulation.json` each round.
 

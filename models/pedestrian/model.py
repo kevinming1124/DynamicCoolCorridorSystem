@@ -49,7 +49,7 @@ class PedestrianSimulator:
 
         A new agent's origin and destination are the route endpoints. Existing
         agents retain their endpoints, state, speed (unless supplied), and time
-        totals. Replacing a route after movement begins is not supported yet.
+        totals. After movement begins, use ``replace_remaining_route`` instead.
         Invalid assignments leave all simulator state unchanged.
         """
         if isinstance(pedestrian_id, bool) or not isinstance(pedestrian_id, int):
@@ -102,6 +102,45 @@ class PedestrianSimulator:
 
         # Reuse registration validation without replacing the current agent
         # until the complete assignment has succeeded.
+        validator = PedestrianSimulator(self.graph)
+        validator.add_pedestrian(candidate)
+        self.pedestrians[pedestrian_id] = validator.get_pedestrian(pedestrian_id)
+
+    def replanning_node_index(self, pedestrian_id: int) -> int:
+        """Route index of the node from which the remaining route may change.
+
+        A pedestrian partway along an edge, or already holding a signal wait
+        for it, is committed to finishing that edge, so replanning starts at
+        its end node. Otherwise it starts at the current node.
+        """
+        agent = self.get_pedestrian(pedestrian_id)
+        committed = (agent.position_m > 0.0
+                     or agent.signal_wait_edge_index == agent.current_edge_index)
+        return agent.current_edge_index + (1 if committed else 0)
+
+    def replace_remaining_route(self, pedestrian_id: int, tail: Sequence[str]) -> None:
+        """Replace the route from ``replanning_node_index`` onward, keeping progress.
+
+        ``tail`` must start at the replanning node and end at the new
+        destination node. Walked nodes, the committed current edge, time
+        totals and signal countdowns are kept. Invalid replacements leave all
+        simulator state unchanged.
+        """
+        agent = self.get_pedestrian(pedestrian_id)
+        if agent.state == PedestrianState.ARRIVED:
+            raise ValueError("An arrived pedestrian cannot be rerouted")
+        if isinstance(tail, (str, bytes)) or not isinstance(tail, Sequence):
+            raise ValueError("Route tail must be an ordered sequence of node IDs")
+        tail = list(tail)
+        keep = self.replanning_node_index(pedestrian_id)
+        if not tail or tail[0] != agent.route[keep]:
+            raise ValueError("Route tail must start at the pedestrian's replanning node")
+        nodes = agent.route[:keep] + tail
+        if len(nodes) < 2 or any(not isinstance(n, str) or n not in self.graph.nodes for n in nodes):
+            raise ValueError("Rerouted path must contain at least two existing node IDs")
+        if keep > agent.current_edge_index and len(nodes) <= agent.current_edge_index + 1:
+            raise ValueError("Rerouting must keep the committed current edge")
+        candidate = replace(agent, route=nodes, destination=nodes[-1])
         validator = PedestrianSimulator(self.graph)
         validator.add_pedestrian(candidate)
         self.pedestrians[pedestrian_id] = validator.get_pedestrian(pedestrian_id)

@@ -11,7 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from .routing_core import dijkstra, make_cost
+from .policy import PolicyRouter
+from .routing_core import make_cost
 from utils import CampusGraph, ModelInput, ModelOutput
 from models.pedestrian.agent import PedestrianState
 from models.pedestrian.model import PedestrianSimulator
@@ -116,6 +117,8 @@ class RoutingModel:
             raise ValueError("Routing config enabled must be Boolean")
         self.config = config
         self.scale = finite_number(config["parameters"]["discomfort_scale_c"], "discomfort_scale_c", positive=True)
+        self.maximum_arrival_ratio = finite_number(
+            config["parameters"].get("maximum_arrival_ratio", 2.5), "maximum_arrival_ratio", minimum=1.0)
         self.simulator = simulator
         self.buildings = dict(buildings or {})
         if requests is not None:
@@ -134,10 +137,56 @@ class RoutingModel:
         if len({r.pedestrian_id for r in self.pending}) != len(self.pending):
             raise ValueError("Duplicate pedestrian IDs")
         self.assigned_routes = []
+        # Trip settings kept for replanning walking pedestrians in later rounds.
+        self.trips: dict[int, dict[str, Any]] = {}
+        self.replan_history: list[dict[str, Any]] = []
 
     @classmethod
     def from_config(cls, simulator, requests=None, buildings=None, path=DEFAULT_CONFIG):
         return cls(json.loads(Path(path).read_text()), simulator, requests, buildings)
+
+    def _replan(self, simulator, router, walkability, edges_by_id, skip_ids, usage):
+        """Re-check walking pedestrians' remaining routes against current heat.
+
+        Each round, a pedestrian assigned by this stage gets its remaining route
+        recomputed with the same policy from its replanning node (the end of a
+        committed current edge, otherwise its current node). The route is
+        replaced only when the result differs. A committed unsafe current edge
+        means no fully safe journey remains, so the coolest fallback is used.
+        """
+        changes = []
+        for pid, agent in sorted(simulator.pedestrians.items()):
+            trip = self.trips.get(pid)
+            if pid in skip_ids or trip is None or agent.state == PedestrianState.ARRIVED:
+                continue
+            keep = simulator.replanning_node_index(pid)
+            start = agent.route[keep]
+            if start in trip["targets"]:
+                continue
+            speed = agent.walking_speed_mps
+            prefix_time, prefix_safe = 0.0, True
+            if keep > agent.current_edge_index:
+                edge = edges_by_id[self._edge_between(agent.route[keep - 1], start)]
+                prefix_time = (edge.distance_m - agent.position_m) / speed + agent.signal_wait_remaining_sec
+                prefix_safe = edge.properties["unsafe_heat"] == 0.0
+            plan = router.plan(start, trip["targets"], speed, trip["preference"], walkability,
+                               force_fallback=not prefix_safe, prefix_time_s=prefix_time)
+            if plan is None or not plan.steps:
+                continue
+            tail = [start] + [step[1] for step in plan.steps]
+            if tail == agent.route[keep:]:
+                continue
+            simulator.replace_remaining_route(pid, tail)
+            for step in plan.steps:
+                usage[step[2]] += 1.0
+            changes.append({"pedestrian_id": pid, "from_node": start,
+                            "previous_tail": agent.route[keep:], "new_tail": tail,
+                            "route_policy": plan.policy, "policy_note": plan.note,
+                            "simulation_time_sec": simulator.simulation_time_sec})
+        return changes
+
+    def _edge_between(self, a, b):
+        return self._pair_index[frozenset((a, b))]
 
     def resolve(self, graph, name):
         if name in graph.nodes:
@@ -162,7 +211,15 @@ class RoutingModel:
             if isinstance(flag, bool) or not isinstance(flag, (int, float)) or flag not in (0.0, 1.0):
                 raise ValueError(f"{edge.edge_id}: blocked must be numeric zero or one")
             blocked[edge.edge_id] = float(flag)
-        view = CampusRoutingView(graph, walkability, blocked)
+        for edge in graph.edges:
+            flag = edge.properties.get("unsafe_heat")
+            if isinstance(flag, bool) or flag not in (0.0, 1.0):
+                raise ValueError(f"{edge.edge_id}: unsafe_heat must be numeric zero or one")
+        CampusRoutingView(graph, walkability, blocked)  # validates unambiguous node pairs
+        self._pair_index = {frozenset((e.from_node, e.to_node)): e.edge_id for e in graph.edges}
+        router = PolicyRouter(graph, blocked, self.maximum_arrival_ratio)
+        heat_report = (model_input.context or {}).get("stage_diagnostics", {}).get("heat_exposure_model", {})
+        unsafe_utci_c = heat_report.get("unsafe_utci_c")
         candidate = PedestrianSimulator(graph)
         candidate.simulation_time_sec = self.simulator.simulation_time_sec
         for agent in self.simulator.pedestrians.values():
@@ -184,7 +241,8 @@ class RoutingModel:
                 raise ValueError(f"P{request.pedestrian_id}: routing requests must be assigned before departure")
             start = self.resolve(graph, request.origin)[0]
             targets = self.resolve(graph, request.destination)
-            route, cost = dijkstra(view, start, targets, make_cost(request.preference))
+            plan = router.plan(start, targets, request.walking_speed_mps, request.preference, walkability)
+            route = None if plan is None else list(plan.steps)
             if route is None:
                 pending.append(request)
                 unavailable.append(request.pedestrian_id)
@@ -205,15 +263,30 @@ class RoutingModel:
             candidate.pedestrians[request.pedestrian_id].state = PedestrianState.WALKING
             distance = sum(edges_by_id[e].distance_m for e in ids)
             exposure = sum(rates[e] * edges_by_id[e].distance_m / request.walking_speed_mps / 60 for e in ids)
+            comfort = make_cost(request.preference)
+            cost = sum(comfort(u, v, {"length": edges_by_id[e].distance_m, "walkability": walkability[e]})
+                       for u, v, e in route)
+            relaxation = (max(0.0, plan.maximum_utci_c - unsafe_utci_c)
+                          if plan.policy == "coolest_fallback" and unsafe_utci_c is not None else None)
             plans.append({"pedestrian_id": request.pedestrian_id,
                           "origin": request.origin, "destination": request.destination,
                           "preference": request.preference, "nodes": nodes, "edges": ids,
                           "destination_nodes": targets,
                           "distance_m": distance, "weighted_cost_m": cost,
                           "estimated_walk_minutes": distance / request.walking_speed_mps / 60,
-                          "estimated_walking_exposure_degree_min": exposure})
+                          "estimated_walking_exposure_degree_min": exposure,
+                          "route_policy": plan.policy,
+                          "estimated_travel_minutes_with_waits": plan.travel_time_s / 60,
+                          "estimated_exposure_with_waits_degree_min": plan.cumulative_exposure_degree_min,
+                          "maximum_utci_c": plan.maximum_utci_c,
+                          "required_threshold_relaxation_c": relaxation,
+                          "fastest_minutes": plan.fastest_time_s / 60,
+                          "within_time_bound": plan.within_time_bound,
+                          "policy_note": plan.note})
             for edge_id in ids:
                 usage[edge_id] += 1.0
+        new_ids = {plan["pedestrian_id"] for plan in plans}
+        replanned = self._replan(candidate, router, walkability, edges_by_id, new_ids, usage)
         values = {"walkability": walkability, "blocked": blocked, "planned_pedestrians": usage}
         updated = graph
         for name, mapping in values.items():
@@ -221,22 +294,37 @@ class RoutingModel:
         output = ModelOutput(
             model_name=self.config["model_name"], property_target="edge",
             property_names=OUTPUTS, property_values=values, graph=updated,
-            diagnostics={"algorithm": "routingc shared Dijkstra and make_cost",
+            diagnostics={"algorithm": "safe-first policy: routingc make_cost on safe walkways, "
+                                      "else least-exposure coolest fallback",
+                         "maximum_arrival_ratio": self.maximum_arrival_ratio,
                          "heat_source": "pipeline heat_exposure_rate",
                          "walkability_mapping": "1 - min(1, heat_exposure_rate / discomfort_scale_c)",
                          "discomfort_scale_c": self.scale, "routes": plans,
                          "all_assigned_routes": self.assigned_routes + plans,
                          "pending_trip_ids": unavailable,
                          "pending_requests": pending_details,
-                         "already_at_destination_ids": already_there},
+                         "already_at_destination_ids": already_there,
+                         "replanned_routes": replanned,
+                         "replan_count_total": len(self.replan_history)},
         )
         self.simulator.graph = updated
         self.simulator.pedestrians = candidate.pedestrians
         self.pending = pending
         self.assigned_routes.extend(plans)
-        print(f"Routing (routingc): {len(plans)} new routes -> Pedestrian; {len(pending)} pending")
         for plan in plans:
+            self.trips[plan["pedestrian_id"]] = {
+                "targets": plan["destination_nodes"], "preference": plan["preference"],
+                "walking_speed_mps": candidate.pedestrians[plan["pedestrian_id"]].walking_speed_mps}
+        self.replan_history.extend(replanned)
+        print(f"Routing (routingc): {len(plans)} new routes -> Pedestrian; {len(pending)} pending"
+              + (f"; {len(replanned)} replanned" if replanned else ""))
+        for change in replanned:
+            print(f"  P{change['pedestrian_id']} replanned: {change['route_policy'].replace('_', ' ')}")
+        for plan in plans:
+            label = plan["route_policy"].replace("_", " ")
+            if plan["required_threshold_relaxation_c"] is not None:
+                label += f", {plan['required_threshold_relaxation_c']:.1f} C over the unsafe line"
             print(f"  P{plan['pedestrian_id']}: {plan['origin']} -> {plan['destination']}; "
                   f"preference {plan['preference']:.2f}, {plan['distance_m']:.1f} m, "
-                  f"estimated walk {plan['estimated_walk_minutes']:.2f} min")
+                  f"estimated walk {plan['estimated_walk_minutes']:.2f} min; {label}")
         return output

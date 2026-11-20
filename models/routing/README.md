@@ -58,7 +58,27 @@ The main pipeline does not depend on the optional [demo](demo/README.md) or
 [osm_build](osm_build/README.md) folders. They contain standalone visualizations
 and tools for rebuilding the exported dataset, respectively.
 
-The pipeline defines:
+## Heat-safety policy
+
+Each trip is planned with the current round's heat (`models/routing/policy.py`):
+
+1. **A safe route exists** (only walkways with `unsafe_heat` = 0): choose among
+   safe walkways only, using routingc's distance/comfort cost so the preference
+   still matters (0 = shortest, 1 = most comfortable). If that route takes more
+   than `maximum_arrival_ratio` (2.5) times the fastest route, use the fastest
+   safe route; safety wins if even that is too slow.
+2. **No safe route**: choose the coolest fallback, which has the least cumulative
+   exposure (rate x walking-plus-waiting minutes), then the lower hottest
+   segment, then shorter time. It is labelled with how far its hottest segment
+   goes past the unsafe line (`required_threshold_relaxation_c`).
+
+Travel time and exposure include signal waits at controlled departures. Route
+records include `route_policy`, `estimated_travel_minutes_with_waits`,
+`estimated_exposure_with_waits_degree_min`, `maximum_utci_c`,
+`within_time_bound` and `policy_note`. This is an independent implementation
+of the rules the final Verification stage audits.
+
+The comfort cost used among safe walkways is:
 
 ```
 walkability = 1 - min(1, heat_exposure_rate / discomfort_scale_c)
@@ -66,10 +86,9 @@ cost = distance_m * (1 + 4 * preference * (1 - walkability))
 ```
 
 The default discomfort_scale_c is 20; this is a configurable modeling assumption,
-not a calibrated thermal preference model. Positive preference penalizes hot
-walkways; it does not guarantee a different route. The real-campus example's two
-preferences currently choose the same approximately 868 m path at the default
-12:00 hot conditions. Shade varies by original walkway using Environment's
+not a calibrated thermal preference model. On the USC map shortest and most
+comfortable safe routes often coincide because the map has few real
+alternatives. Shade varies by original walkway using Environment's
 generated profiles; these are simulation assumptions, not measured shadows.
 Estimated exposure is sum(heat_exposure_rate × walking minutes) at assignment
 conditions. It is a route estimate, not an accumulated individual exposure log.
@@ -80,8 +99,18 @@ Requests are consumed once when assigned; agents persist across rounds.
 Unreachable requests stay pending and are retried next round.
 Unknown names fail clearly. A request already at a destination is reported and
 consumed without creating an agent. Assignment validation is atomic within this
-stage. Preloaded, unmoved simulator agents can be routed before departure;
-already moving agents retain their existing route and progress.
+stage. Preloaded, unmoved simulator agents can be routed before departure.
+
+## Replanning
+
+Every round, each walking pedestrian assigned by this stage has its remaining
+route recomputed with the same policy. Replanning starts at the end of a
+committed current edge (partly walked, or with a sampled signal wait), otherwise
+at the current node; the committed edge and its countdown are kept. The route is
+replaced only when the result differs, using
+`PedestrianSimulator.replace_remaining_route`. If the committed edge is itself
+unsafe, no fully safe journey remains, so the coolest fallback is used.
+Diagnostics list `replanned_routes` for the round and `replan_count_total`.
 
 `--routes` remains accepted as a legacy **trip request** format: only first/last
 node IDs and speed are read; intermediate nodes are recomputed by routingc.
@@ -95,16 +124,17 @@ Direct calls to PedestrianSimulator.from_routes_file still assign fixed paths.
 
 ## Verification policy and remaining limitations
 
-The final verifier checks safe-first selection, or the coolest fallback when no
-safe route exists, plus an independent 2.5x time bound. This router still uses its
-comfort-weighted cost and may fail that policy. See the
+The final verifier independently checks safe-first selection, or the coolest
+fallback when no safe route exists, plus the 2.5x time bound. The router follows
+the same policy, so it should pass; a safe route that cannot meet the time bound
+is still chosen and fails only the arrival check. See the
 [verification guide](../verification/README.md) for audit behavior.
 
 Pedestrians now execute signal delays before controlled departures; see
-models/pedestrian/README.md and example_signal_trips.json. Routing cost,
-estimated_walk_minutes and estimated walking exposure still exclude those
-delays. Routes are assigned before departure and retained during the trip;
-blocking an edge affects pending/new routes. See the
+models/pedestrian/README.md and example_signal_trips.json. The policy's travel
+time and exposure include those delays; the older estimated_walk_minutes and
+estimated walking exposure fields still exclude them. Blocking an edge affects
+new routes and replanned remaining routes. See the
 [pedestrian guide](../pedestrian/README.md#current-limits) for movement and
 persistence limitations. Stage diagnostics include route records and can be
 saved under the debug directory.

@@ -9,7 +9,8 @@ from pathlib import Path
 
 from utils import ModelInput, ModelOutput
 from .actuators import audit_actuators
-from .checks import CODES, FAIL, INCONCLUSIVE, NA, PASS, RouteNetwork, aggregate, audit_route, number
+from .checks import (CODES, FAIL, INCONCLUSIVE, NA, PASS, POLICY_VIOLATION_MESSAGE, RouteNetwork,
+                     aggregate, audit_route, number)
 from .strel_adapter import RouteSafetyMonitor
 
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.json")
@@ -17,7 +18,7 @@ OUTPUTS = ("verification_route_selection_valid", "verification_bounded_arrival_v
            "verification_fallback_valid", "verification_actuator_response_valid",
            "verification_overall_valid")
 INPUTS = ("utci_c", "unsafe_heat", "heat_exposure_rate", "air_temp_f", "humidity_pct", "mist_cooling_f",
-          "uncooled_air_temp_f", "uncooled_humidity_pct")
+          "uncooled_air_temp_f", "uncooled_humidity_pct", "local_temp_offset_f")
 
 
 @dataclass(frozen=True)
@@ -134,6 +135,21 @@ class VerificationModel:
                 network, person, self.route_monitor, self.config.maximum_arrival_ratio, tolerance,
                 plans.get(person["pedestrian_id"], {}).get("destination_nodes"))
                 for person in snapshot["pedestrians"]]
+        # A post-movement policy miss lies beyond the committed prefix, so it is
+        # not yet walked: Routing replans it before the next movement, and the
+        # next round's before-movement audit enforces that replan.
+        replan_required = []
+        for record in phases["remaining_routes"]:
+            if record.get("route_policy_outcome") != "POLICY_VIOLATION" or any(
+                    "inaccessible or blocked" in v for v in record["violations"]):
+                continue
+            record["violations"] = [v for v in record["violations"] if v != POLICY_VIOLATION_MESSAGE]
+            record.update(route_policy_outcome="REPLAN_REQUIRED", route_selection_status=NA,
+                          fallback_status=NA if record["fallback_status"] == FAIL else record["fallback_status"],
+                          replan_note="Not yet walked; Routing must replan before the next movement, "
+                                      "enforced by the next round's before-movement audit")
+            record["status"] = aggregate([record["bounded_arrival_status"]])
+            replan_required.append(record["pedestrian_id"])
         pending = []
         for request in routing["pending_requests"]:
             path = network.search(request["origin_node"], request["destination_nodes"],
@@ -150,7 +166,7 @@ class VerificationModel:
         status = aggregate((selection_status, arrival_status, actuators["status"]))
         round_number = self.round_number + 1
         # Keep compact history so later arrivals cannot erase earlier violations.
-        summary = {"round": round_number, "status": status,
+        summary = {"round": round_number, "status": status, "replan_required_ids": replan_required,
                    "route_selection_status": selection_status, "bounded_arrival_status": arrival_status,
                    "actuator_response_status": actuators["status"],
                    "route_audit_counts": dict(Counter(r["status"] for r in records)),
@@ -173,7 +189,8 @@ class VerificationModel:
                  "actuator_response": actuators, "round_history": history,
                  "engines": {"selected_route_safety": "moonlight_strel",
                              "safe_route_existence": "safe-subgraph Dijkstra",
-                             "fallback": "minimax Dijkstra then additive exposure/time Dijkstra",
+                             "fallback": "additive exposure/time Dijkstra; ranking cumulative "
+                                         "exposure, then hottest segment, then travel time",
                              "arrival": "directional time Dijkstra; same committed prefix and countdown"}}
         statuses = (selection_status, arrival_status, fallback_status, actuators["status"], status)
         values = {name: {edge.edge_id: CODES[result] for edge in graph.edges}

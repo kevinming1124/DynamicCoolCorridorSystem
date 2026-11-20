@@ -9,7 +9,7 @@ from unittest.mock import patch
 from main import load_simulation_graph, run_simulation
 from models.routing import load_trip_requests
 from models.verification.model import VerificationModel
-from models.verification.checks import RouteNetwork
+from models.verification.checks import FALLBACK_RANKING, RouteNetwork, lexicographically_worse
 from utils import ModelInput, load_campus_graph
 
 
@@ -123,6 +123,37 @@ class TestVerification(unittest.TestCase):
         del context["pedestrian_before_movement"]
         with self.assertRaisesRegex(ValueError, "before_movement"):
             self.verify(ModelInput(evidence.graph, context))
+
+
+class TestFallbackRanking(unittest.TestCase):
+    def route(self, exposure, hottest, time):
+        return {"cumulative_exposure_degree_min": exposure,
+                "maximum_exposure_rate_c": hottest, "travel_time_s": time}
+
+    def test_total_exposure_ranks_before_hottest_segment(self):
+        coolest = self.route(124.36, 13.49, 619.9)        # less exposure, hotter segment
+        alternative = self.route(150.56, 13.31, 758.6)    # cooler segment, more exposure
+        self.assertFalse(lexicographically_worse(coolest, alternative, FALLBACK_RANKING, 1e-6))
+        self.assertTrue(lexicographically_worse(alternative, coolest, FALLBACK_RANKING, 1e-6))
+
+    def test_ties_fall_through_to_later_keys(self):
+        base = self.route(100.0, 12.0, 600.0)
+        self.assertFalse(lexicographically_worse(base, dict(base), FALLBACK_RANKING, 1e-6))
+        self.assertTrue(lexicographically_worse(self.route(100.0, 12.5, 500.0), base,
+                                                FALLBACK_RANKING, 1e-6))
+        self.assertTrue(lexicographically_worse(self.route(100.0, 12.0, 601.0), base,
+                                                FALLBACK_RANKING, 1e-6))
+        # Differences inside the tolerance count as ties.
+        self.assertFalse(lexicographically_worse(self.route(100.0 + 1e-9, 12.0, 600.0), base,
+                                                 FALLBACK_RANKING, 1e-6))
+
+    def test_usc_noon_fallback_accepts_lower_total_exposure(self):
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed), \
+                patch("sys.argv", ["main.py", "--misting-count", "4", "--rounds", "1"]):
+            from main import main as pipeline_main
+            pipeline_main()
+        self.assertIn("Verification audit: PASS", printed.getvalue())
 
 
 if __name__ == "__main__":

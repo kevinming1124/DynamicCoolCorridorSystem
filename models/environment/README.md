@@ -3,7 +3,7 @@
 Owner: Aman
 
 This model creates the weather on the campus. For one time of day and one
-weather scenario, it writes seven values onto **every edge** of the campus
+weather scenario, it writes eight values onto **every edge** of the campus
 graph. Heat Exposure reads these values to calculate UTCI and heat flags;
 Control and Routing consume those heat outputs. Verification audits the
 environmental and heat evidence.
@@ -15,7 +15,7 @@ The full pipeline also requires the packages in the root `requirements.txt`.
 
 ## What it outputs
 
-Every edge gets these seven properties:
+Every edge gets these eight properties:
 
 | Property | Unit | Meaning |
 | --- | --- | --- |
@@ -26,6 +26,7 @@ Every edge gets these seven properties:
 | `mist_cooling_f` | F | How much misters cooled this path (0 when none are on) |
 | `uncooled_air_temp_f` | F | Air temperature as if no mister were on |
 | `uncooled_humidity_pct` | % | Relative humidity as if no mister were on |
+| `local_temp_offset_f` | F | This walkway's fixed offset from its surface and surroundings, already included in both air temperatures |
 
 Sunlight and shade are kept separate on purpose, so the heat exposure model can
 decide how to combine them. The cooling from misters is already subtracted from
@@ -126,8 +127,35 @@ the strongest contribution counts; misters do not stack. Misting also raises
 humidity by up to `mist_humidity_increase_pct` (5%), scaled by the edge's
 cooling relative to the strongest active mister's full cooling.
 
-At this stage, temperature, humidity, and sunlight are the same on every edge;
-edges differ through shade and misting.
+**Local temperature offset.** Each walkway gets a fixed air-temperature
+offset from its surface and what is around it, so walkways do not all heat
+up in lockstep. The facts come from OpenStreetMap: the dataset's
+`surroundings.json` (built by `models/routing/osm_build/export_surroundings.py`)
+records each segment's OSM `surface` tag and its distance to the nearest tree,
+green area, building, parking lot, major road and fountain. The rules live in
+`config.json` under `metadata.local_temperature`:
+
+| Rule | Offset |
+| --- | --- |
+| Surface asphalt / paved / concrete or paving stones / untagged | +1.5 / +1.0 / +0.5 / 0 F |
+| Tree within 10 m | -1.5 F |
+| Grass or park within 10 m | -1.0 F |
+| Fountain within 15 m | -0.5 F |
+| Parking lot within 10 m | +1.0 F |
+| Major car road within 10 m | +1.0 F |
+| No building within 20 m (open plaza) | +1.0 F |
+
+The total is clamped to -3..+3 F and added to the campus temperature on that
+walkway (cut mist-zone pieces share their walkway's offset). On USC the
+offsets range from -1.5 to +3 F, averaging about +0.7 F. On a hot day the share
+of unsafe walkways now climbs over about 90 minutes (2% at 10:30, 29% at
+11:00, 79% at 11:30, 91% at 12:00) instead of jumping from 0% to 92% in one
+step. OSM maps only 38 individual trees, far fewer than are on campus, so tree
+cooling is patchy. The values are modelling assumptions, not measurements.
+A dataset without a surroundings file gets no offsets.
+
+Humidity and sunlight are the same on every edge; edges also differ through
+shade and misting.
 
 ## Weather scenarios
 

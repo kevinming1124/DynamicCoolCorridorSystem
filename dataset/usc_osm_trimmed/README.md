@@ -48,6 +48,18 @@ the covered piece is cooled; the JSON files are not rewritten. Signals remain id
 base dataset files are never rewritten. Omit the option to retain the original
 two misters. Run metadata records selected placements in every stage's output.
 
+## Surroundings
+
+`surroundings.json` records, for every segment, the OSM `surface` tag of the
+nearest walkable way and the distance to the nearest tree, green area,
+building, parking lot, major road and fountain. Segments are linked to OSM by
+position (917 of 930 match a way, median 0 m). Environment uses it for
+per-walkway temperature offsets. Rebuild it with the standard library only:
+
+```sh
+python models/routing/osm_build/export_surroundings.py
+```
+
 ## Rebuild (optional development dependencies)
 
 From the repository root:

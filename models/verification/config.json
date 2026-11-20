@@ -12,7 +12,7 @@
   ],
   "input_properties": [
     "utci_c", "unsafe_heat", "heat_exposure_rate", "air_temp_f", "humidity_pct", "mist_cooling_f",
-    "uncooled_air_temp_f", "uncooled_humidity_pct"
+    "uncooled_air_temp_f", "uncooled_humidity_pct", "local_temp_offset_f"
   ],
   "parameters": {
     "maximum_arrival_ratio": 2.5,

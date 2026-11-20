@@ -18,7 +18,8 @@
     "edges": "edges.json",
     "actuators": "actuators.json",
     "buildings": "buildings.json",
-    "source_edges": "source_edges.json"
+    "source_edges": "source_edges.json",
+    "surroundings": "surroundings.json"
   },
   "source": {
     "branch": "routingc",

@@ -17,8 +17,11 @@ For each pedestrian's remaining journey:
    Safety uses Heat Exposure's authoritative `unsafe_heat` flag (currently UTCI
    >= 38 C is unsafe). That flag is calculated before UTCI is rounded for output.
 2. If none exists, the selected available route must minimize, in order:
-   maximum `heat_exposure_rate`, time-weighted cumulative exposure, travel time.
-   There is no heat ceiling excluding the coolest fallback. A correct fallback
+   time-weighted cumulative exposure, maximum `heat_exposure_rate` (hottest
+   segment), travel time. Values within `comparison_tolerance` count as ties.
+   Total exposure comes first because it is what a pedestrian accumulates; a
+   route whose hottest segment is slightly cooler but that adds exposure
+   overall is not the coolest. There is no heat ceiling excluding the coolest fallback. A correct fallback
    can pass route selection while its `selected_route_safe` result is false.
 3. Independently, remaining journey time must not exceed 2.5 times the fastest
    available remaining journey. The reference ignores heat safety. This bound
@@ -48,7 +51,7 @@ Missing or malformed required evidence raises an explicit input error.
 | Producer | Required evidence |
 | --- | --- |
 | Heat Exposure | Complete edge `utci_c`, `unsafe_heat`, `heat_exposure_rate`; diagnostic `unsafe_utci_c`, `reference_utci_c` |
-| Environment | Complete edge `air_temp_f`, `humidity_pct`, `mist_cooling_f`, `uncooled_air_temp_f`, `uncooled_humidity_pct`; diagnostics `base_air_temp_f`, `base_humidity_pct`, `mist_range_m`, `mist_humidity_increase_pct` |
+| Environment | Complete edge `air_temp_f`, `humidity_pct`, `mist_cooling_f`, `uncooled_air_temp_f`, `uncooled_humidity_pct`, `local_temp_offset_f`; diagnostics `base_air_temp_f`, `base_humidity_pct`, `mist_range_m`, `mist_humidity_increase_pct` |
 | Routing | `all_assigned_routes` including destination entrances, `pending_requests` with resolved endpoints and speed, `pending_trip_ids`, `already_at_destination_ids`; optional numeric edge `blocked` |
 | Pedestrian | Before/after snapshots with routes, progress, speeds, states, walking/wait totals, countdowns and sampled departures; requested timestep |
 
@@ -69,8 +72,8 @@ unsafe selected segment. It caches the compiled monitor and uses MoonLight
 0.3.1's numeric Java entry point to avoid full signal/graph console dumps.
 
 Python uses safe-subgraph Dijkstra for safe-route existence, time Dijkstra for
-the independent arrival reference, then minimax Dijkstra followed by additive
-exposure/time Dijkstra for the fallback.
+the independent arrival reference, and additive exposure/time Dijkstra for the
+fallback; the hottest segment only breaks exact exposure ties.
 
 Actuator verification checks the effects actually implemented:
 
@@ -78,8 +81,8 @@ Actuator verification checks the effects actually implemented:
   configured radius, cooling equal to full strength times that share (1 inside
   the pre-cut pieces, 0 outside) with the strongest mister counting and no
   stacking or distance decay, rounded cooling and air temperature, the
-  implemented humidity increase/clamp, and uncooled air temperature and
-  humidity equal to the base weather.
+  implemented humidity increase/clamp, and uncooled air temperature equal to the
+  base weather plus the walkway's local offset (humidity equal to the base).
 - Signals: operating bounds and independent before/after movement accounting.
   Waits apply at controlled departures; co-located signals use their maximum.
   Existing countdowns are retained across command changes. Walking, waiting,
@@ -123,8 +126,19 @@ individual check statuses for scope. Prior failed rounds remain visible in
 and `signal_wait_consumed_sec` for existing consumers.
 
 Debug output is `round_001/06_requirements_verification.json` after the existing
-routing and movement files. The router's comfort-weighted cost can select routes
-that fail the audited policy.
+routing and movement files. Routing applies the same policy itself, so failures
+point to a router bug or a policy disagreement worth inspecting.
+
+### Replanning after movement
+
+The post-movement audit can find a remaining route that no longer follows the
+policy because the pedestrian's position changed (for example, a safe route
+becomes available once an unavoidable hot segment is behind them). Such a miss
+lies beyond the committed current edge, so it has not been walked yet. It is
+reported as `REPLAN_REQUIRED` (route selection not applicable, listed in
+`replan_required_ids`) rather than a failure. Routing replans before the next
+movement, and the next round's before-movement audit enforces it. A replan
+required in the final round is reported but cannot be enforced.
 
 ## Run and validate
 

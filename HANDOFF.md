@@ -18,6 +18,7 @@ It describes the current implementation and how to extend the project.
 - Dataset: only `usc_osm_trimmed` (real OSM geometry, assumed simulation inputs) is run and tested; `campus_50` and `tiny_campus_block` are kept for reference only
 - Optional `--misting-count 0|4|6|10` loads nested USC placements from `misting_scenarios.json` without copying the map; omission retains original actuators. Every stage records the explicit selection in `diagnostics.misting_scenario`.
 - Misting uses a 10 m radius. `main.load_simulation_graph` cuts walkways at every mister's circle (`utils/graph/mist_zones.py`), so only the inside piece gets the full 10.8 F; the rest gets none. No stacking or distance decay. Environment also outputs uncooled air temperature and humidity, Heat Exposure turns them into `uncooled_utci_c`, and Control switches misters on at 35 C and off below 33 C of that uncooled UTCI. Scenario startup validates anchors and rejects touching/overlapping circles.
+- Local temperature: Environment adds a fixed -3..+3 F offset per walkway from OSM surface and nearby trees, green areas, parking, major roads, fountains and open plazas (`surroundings.json`, rules in `models/environment/config.json`)
 - Coordinates: local `x_m` and `y_m` values in meters
 - Automated model and graph utility tests live under `tests/`; see `tests/README.md` for coverage and known gaps
 
@@ -403,8 +404,8 @@ movement and control behavior.
 
 Verification is registered after Pedestrian and audits current upstream evidence.
 If any available safe route exists, selection
-must be safe. Otherwise it must minimize maximum heat exposure rate, then
-time-weighted cumulative exposure, then travel time, with no hard heat ceiling.
+must be safe. Otherwise it must minimize time-weighted cumulative exposure,
+then maximum heat exposure rate, then travel time, with no hard heat ceiling.
 The 2.5x arrival bound is independent and never filters route candidates.
 
 The verifier audits pre-movement routes and post-movement remaining routes,
@@ -413,8 +414,12 @@ resolved destination entrances and shares a committed current-edge prefix across
 comparisons. Efficient Dijkstra passes replace exhaustive simple-path search.
 Environment and Heat Exposure expose real same-round diagnostic evidence.
 Misting physics and signal/movement accounting are audited. Read the verifier
-README for input contracts, result codes, scope, and commands. Routing uses a
-comfort-weighted cost and can fail the separately audited route policy.
+README for input contracts, result codes, scope, and commands. Routing applies
+the same policy itself (`models/routing/policy.py`): safe walkways only when a
+safe route exists (preference picks among them), otherwise the least-exposure
+coolest fallback, within the 2.5x bound where possible. It replans each walking
+pedestrian's remaining route every round. A post-movement miss that has not
+been walked yet is reported as REPLAN_REQUIRED and enforced next round.
 
 ## Persistent signal countdowns
 
@@ -423,8 +428,10 @@ its anchor on a controlled edge. Countdown fields in agent.py persist across
 rounds, and same-timestep time left after release is used for walking.
 WAITING without a countdown still means an externally paused agent. Walking
 time keeps its original meaning; waiting is separate, with derived elapsed
-time exposed in snapshots. Never reconstruct or reroute an agent after its
-wait begins. Routing cost/estimates currently exclude signal delay.
+time exposed in snapshots. Never reconstruct an agent. Rerouting uses
+`PedestrianSimulator.replace_remaining_route`, which keeps a committed current
+edge (partly walked or with a sampled signal wait) and its countdown. Routing's
+policy counts signal waits in travel time and exposure.
 
 See models/pedestrian/README.md for explicit assumptions and run
 models/routing/example_signal_trips.json to exercise a real-map signal. Extend

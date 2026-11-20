@@ -61,10 +61,13 @@ def audit_actuators(network, environment, before, after, dt, tolerance):
                        for actuator in on_misters),
                       default=0.0)
         humidity = base_humidity + (humidity_increase * cooling / maximum if maximum > 0 else 0.0)
+        # The walkway's fixed surface/surroundings offset is part of its air temperature.
+        local_temp = base_temp + number(edge.properties.get("local_temp_offset_f"),
+                                        f"{edge.edge_id}.local_temp_offset_f")
         expected = {"mist_cooling_f": round(cooling, 2),
-                    "air_temp_f": round(base_temp - cooling, 2),
+                    "air_temp_f": round(local_temp - cooling, 2),
                     "humidity_pct": round(min(100.0, max(0.0, humidity)), 2),
-                    "uncooled_air_temp_f": round(base_temp, 2),
+                    "uncooled_air_temp_f": round(local_temp, 2),
                     "uncooled_humidity_pct": round(base_humidity, 2)}
         for name, value in expected.items():
             actual = number(edge.properties.get(name), f"{edge.edge_id}.{name}")

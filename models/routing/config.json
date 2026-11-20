@@ -1,11 +1,11 @@
 {
   "model_name": "routingc_model",
-  "description": "Use routingc's distance/comfort Dijkstra on the same graph as the pedestrian simulator.",
+  "description": "Safe-first routing: routingc distance/comfort cost on safe walkways, else the least-exposure coolest fallback, within a 2.5x time bound.",
   "enabled": true,
   "property_target": "edge",
   "output_properties": ["walkability", "blocked", "planned_pedestrians"],
-  "input_properties": ["heat_exposure_rate"],
-  "parameters": {"discomfort_scale_c": 20.0},
+  "input_properties": ["heat_exposure_rate", "unsafe_heat", "utci_c"],
+  "parameters": {"discomfort_scale_c": 20.0, "maximum_arrival_ratio": 2.5},
   "metadata": {
     "trips": [
       {"pedestrian_id": 1, "origin": "Leavey Library", "destination": "Seeley G. Mudd Building", "preference": 0.0},

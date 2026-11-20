@@ -137,7 +137,9 @@ simulator, trip_requests and dataset_directory explicitly.
 
 ## Current limits
 
-Agents retain their assigned routes throughout a trip. Crowd collision handling
+Routing may replace an agent's remaining route each round through
+`replace_remaining_route`, which keeps walked nodes, a committed current edge and
+its signal countdown, and updates the destination entrance. Crowd collision handling
 and accumulated individual heat are not implemented. Environment time/weather
 remain fixed while walking/waiting advance, unless `main.py --time-range`
 advances the clock. Debug snapshots can be saved, but

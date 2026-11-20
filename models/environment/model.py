@@ -12,6 +12,8 @@ properties onto every edge of the campus graph:
     mist_cooling_f          cooling from nearby misters that are on (F)
     uncooled_air_temp_f     air temperature as if no mister were on (F)
     uncooled_humidity_pct   relative humidity as if no mister were on (%)
+    local_temp_offset_f     this walkway's fixed offset from surface and
+                            surroundings, already included in both air temps (F)
 
 A mister cools an edge by its full strength times the share of the edge
 inside its circle. The pipeline first cuts walkways at the circle boundaries
@@ -178,6 +180,8 @@ class EnvironmentModel:
         self.shade_profiles = self._load_shade_profiles()
         self._dataset_schedules: dict[Path, dict[str, Any] | None] = {}
         self._dataset_walkways: dict[Path, list[list[str]]] = {}
+        self._dataset_surroundings: dict[Path, dict[str, dict[str, Any]] | None] = {}
+        self.local_rules = self._load_local_rules()
         self._state: dict[str, Any] = {}
 
     @classmethod
@@ -252,6 +256,12 @@ class EnvironmentModel:
                 "mist_humidity_increase_pct": self._parameter("mist_humidity_increase_pct"),
                 "mist_cooling_rule": "strongest active mister's full cooling times the "
                                      "covered share of the edge",
+                "local_offset_source": self._state["local_offset_source"],
+                "local_offset_f": {
+                    "min": min(self._state["local_offsets"].values(), default=0.0),
+                    "max": max(self._state["local_offsets"].values(), default=0.0),
+                    "nonzero_edges": sum(v != 0 for v in self._state["local_offsets"].values()),
+                },
             },
         )
 
@@ -269,6 +279,8 @@ class EnvironmentModel:
         state = self._state
         shade = self._shade_for(edge.edge_id)
         mist_cooling = self._mist_cooling_for(edge, graph)
+        local_offset = state["local_offsets"].get(edge.edge_id, 0.0)
+        local_air_temp = state["base_air_temp_f"] + local_offset
 
         humidity = state["base_humidity_pct"]
         if mist_cooling > 0 and state["max_mist_reduction_f"] > 0:
@@ -277,13 +289,14 @@ class EnvironmentModel:
         humidity = min(100.0, max(0.0, humidity))
 
         return {
-            "air_temp_f": round(state["base_air_temp_f"] - mist_cooling, 2),
+            "air_temp_f": round(local_air_temp - mist_cooling, 2),
             "humidity_pct": round(humidity, 2),
             "solar_radiation_wm2": round(state["solar_radiation_wm2"], 2),
             "shade_pct": round(shade, 2),
             "mist_cooling_f": round(mist_cooling, 2),
-            "uncooled_air_temp_f": round(state["base_air_temp_f"], 2),
+            "uncooled_air_temp_f": round(local_air_temp, 2),
             "uncooled_humidity_pct": round(state["base_humidity_pct"], 2),
+            "local_temp_offset_f": round(local_offset, 2),
         }
 
     # ------------------------------------------------------------------
@@ -368,6 +381,9 @@ class EnvironmentModel:
             "scheduled_shade_edges": 0,
             "auto_shade_edges": 0,
         }
+        offsets, offset_source = self._local_offsets(model_input.graph, context.get("dataset_dir"))
+        self._state["local_offsets"] = offsets
+        self._state["local_offset_source"] = offset_source
 
     def _shade_for(self, edge_id: str) -> float:
         """Shade percent for this edge right now.
@@ -486,6 +502,88 @@ class EnvironmentModel:
                 groups = [record["pipeline_edges"] for record in source["source_edges"]]
             self._dataset_walkways[directory] = groups
         return self._dataset_walkways[directory]
+
+    # ------------------------------------------------------------------
+    # Local temperature offsets (surface and surroundings)
+    # ------------------------------------------------------------------
+    def _load_local_rules(self) -> dict[str, Any]:
+        """Validate the surface and nearby-feature offset rules in config."""
+        rules = self.config.metadata.get("local_temperature")
+        if rules is None:
+            return {"surface_offsets_f": {}, "nearby_rules": [],
+                    "min_offset_f": 0.0, "max_offset_f": 0.0}
+
+        def number(value, name):
+            if isinstance(value, bool) or not isinstance(value, (int, float)) \
+                    or not math.isfinite(value):
+                raise ValueError(f"local_temperature: '{name}' must be a finite number")
+            return float(value)
+
+        surface = {str(k): number(v, f"surface_offsets_f.{k}")
+                   for k, v in rules.get("surface_offsets_f", {}).items()}
+        nearby = []
+        for rule in rules.get("nearby_rules", []):
+            if not isinstance(rule, dict) or not isinstance(rule.get("feature"), str):
+                raise ValueError("local_temperature: each nearby rule needs a 'feature' name")
+            has_within, has_beyond = "within_m" in rule, "beyond_m" in rule
+            if has_within == has_beyond:
+                raise ValueError(f"local_temperature: rule '{rule.get('name', rule['feature'])}' "
+                                 "needs exactly one of 'within_m' or 'beyond_m'")
+            nearby.append({
+                "name": str(rule.get("name", rule["feature"])),
+                "feature": rule["feature"],
+                "mode": "within" if has_within else "beyond",
+                "distance_m": number(rule["within_m" if has_within else "beyond_m"], "distance"),
+                "offset_f": number(rule.get("offset_f"), "offset_f"),
+            })
+        low = number(rules.get("min_offset_f", -3.0), "min_offset_f")
+        high = number(rules.get("max_offset_f", 3.0), "max_offset_f")
+        if low > high:
+            raise ValueError("local_temperature: 'min_offset_f' cannot exceed 'max_offset_f'")
+        return {"surface_offsets_f": surface, "nearby_rules": nearby,
+                "min_offset_f": low, "max_offset_f": high}
+
+    def local_offset_for(self, record: Mapping[str, Any]) -> float:
+        """Offset (F) for one walkway's surroundings record, clamped to limits."""
+        rules = self.local_rules
+        offset = rules["surface_offsets_f"].get(record.get("surface", "unmatched"), 0.0)
+        for rule in rules["nearby_rules"]:
+            distance = record.get(rule["feature"])
+            if rule["mode"] == "within":
+                applies = distance is not None and distance <= rule["distance_m"]
+            else:  # no such feature recorded nearby counts as far away
+                applies = distance is None or distance > rule["distance_m"]
+            if applies:
+                offset += rule["offset_f"]
+        return min(rules["max_offset_f"], max(rules["min_offset_f"], offset))
+
+    def _local_offsets(self, graph: CampusGraph, dataset_dir: Any) -> tuple[dict[str, float], str]:
+        """Per-edge offsets; cut mist-zone pieces use their walkway's record."""
+        surroundings = self._dataset_surroundings_for(dataset_dir)
+        if surroundings is None:
+            return {}, "none (dataset has no surroundings file)"
+        offsets = {}
+        for edge in graph.edges:
+            record = surroundings.get(parent_edge_id(edge.edge_id))
+            offsets[edge.edge_id] = self.local_offset_for(record) if record is not None else 0.0
+        return offsets, "dataset surroundings file"
+
+    def _dataset_surroundings_for(self, dataset_dir: Any) -> dict[str, dict[str, Any]] | None:
+        """The surroundings file named in <dataset_dir>/dataset.json, cached."""
+        if not dataset_dir:
+            return None
+        directory = Path(dataset_dir).resolve()
+        if directory not in self._dataset_surroundings:
+            manifest = json.loads((directory / "dataset.json").read_text(encoding="utf-8"))
+            filename = manifest.get("files", {}).get("surroundings")
+            records = None
+            if filename:
+                raw = json.loads((directory / filename).read_text(encoding="utf-8"))
+                records = raw.get("edges")
+                if not isinstance(records, dict):
+                    raise ValueError(f"{directory / filename}: 'edges' must be an object")
+            self._dataset_surroundings[directory] = records
+        return self._dataset_surroundings[directory]
 
     def _load_shade_profiles(self) -> dict[str, dict[str, float]]:
         """Dataset-independent shade curves used for automatic shade."""
