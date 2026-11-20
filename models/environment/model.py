@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -48,7 +48,7 @@ from utils import (
 
 PROJECT_ROOT = Path(__file__).parents[2]
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.json")
-DEFAULT_DATASET_PATH = PROJECT_ROOT / "dataset" / "campus_50"
+DEFAULT_DATASET_PATH = PROJECT_ROOT / "dataset" / "usc_osm_trimmed"
 MODEL_DIR = Path(__file__).parent
 
 REQUIRED_SCENARIO_FIELDS = (
@@ -166,8 +166,8 @@ class EnvironmentModel:
         self.config = config
         self.scenarios = self._load_scenarios()
         self.shade_profiles = self._load_shade_profiles()
-        self.fallback_shade_schedule = self._load_fallback_shade_schedule()
         self._dataset_schedules: dict[Path, dict[str, Any] | None] = {}
+        self._dataset_walkways: dict[Path, list[list[str]]] = {}
         self._state: dict[str, Any] = {}
 
     @classmethod
@@ -236,6 +236,10 @@ class EnvironmentModel:
                 "shade_source": self._state["shade_source"],
                 "edges_with_scheduled_shade": self._state["scheduled_shade_edges"],
                 "edges_with_auto_shade": self._state["auto_shade_edges"],
+                "base_air_temp_f": self._state["base_air_temp_f"],
+                "base_humidity_pct": self._state["base_humidity_pct"],
+                "mist_range_m": self._parameter("mist_range_m"),
+                "mist_humidity_increase_pct": self._parameter("mist_humidity_increase_pct"),
             },
         )
 
@@ -317,9 +321,7 @@ class EnvironmentModel:
             and actuator.properties.get("status") == "on"
         ]
 
-        schedule, shade_source = self._shade_schedule_for(
-            model_input.graph, context.get("dataset_dir")
-        )
+        schedule, shade_source = self._shade_schedule_for(context.get("dataset_dir"))
         scheduled_edges = set(schedule["edges"]) if schedule else set()
         auto_edges = [
             edge for edge in model_input.graph.edges
@@ -346,6 +348,7 @@ class EnvironmentModel:
             "auto_profiles": _auto_shade_profiles(
                 model_input.graph, auto_edges,
                 self._parameter("auto_shade_axis_ratio"),
+                self._walkway_segments(context.get("dataset_dir")),
             ),
             "scheduled_shade_edges": 0,
             "auto_shade_edges": 0,
@@ -370,10 +373,10 @@ class EnvironmentModel:
         return float(profile[_latest_slot(list(profile), state["hour"])])
 
     def _mist_cooling_for(self, edge: GraphEdge, graph: CampusGraph) -> float:
-        """Cooling from misters that are on, fading to zero at mist_range_m.
+        """Length-averaged cooling from active circular misting zones.
 
-        Distance is measured from the mister to the closest point on the edge.
-        Overlapping misters add up but never exceed the strongest mister's limit.
+        Each mister supplies full cooling inside its radius and zero outside.
+        Contributions retain the existing strongest-mister cap.
         """
         if not self._state["misters_on"]:
             return 0.0
@@ -382,13 +385,11 @@ class EnvironmentModel:
         mist_range = self._parameter("mist_range_m")
         total = 0.0
         for mister in self._state["misters_on"]:
-            distance = _point_to_segment_m(
-                mister.x_m, mister.y_m, start.x_m, start.y_m, end.x_m, end.y_m
+            coverage = _segment_circle_coverage_ratio(
+                mister.x_m, mister.y_m, mist_range,
+                start.x_m, start.y_m, end.x_m, end.y_m
             )
-            if distance < mist_range:
-                total += (mister.max_heat_reduction_f or 0.0) * (
-                    1 - distance / mist_range
-                )
+            total += (mister.max_heat_reduction_f or 0.0) * coverage
         return min(total, self._state["max_mist_reduction_f"])
 
     def _load_scenarios(self) -> dict[str, dict[str, float]]:
@@ -417,16 +418,13 @@ class EnvironmentModel:
     # Shade sources
     # ------------------------------------------------------------------
     def _shade_schedule_for(
-        self, graph: CampusGraph, dataset_dir: Any
+        self, dataset_dir: Any
     ) -> tuple[dict[str, Any] | None, str]:
         """Pick the shade schedule for this graph and say where it came from.
 
         - dataset_dir given (main.py does this): that dataset's own schedule,
           the file named under "shade_schedule" in its dataset.json, if any.
-        - No dataset_dir (models that call this one directly): the fallback
-          file in config.json, but only if every edge it lists is in this
-          graph. That keeps campus_50 exact while stopping its schedule from
-          being applied to a different graph that happens to reuse edge IDs.
+        - No dataset_dir: generate shade from geometry and model profiles.
         Edges not covered by the chosen schedule get automatic shade.
         """
         if dataset_dir:
@@ -435,11 +433,7 @@ class EnvironmentModel:
                 return None, "auto (dataset has no shade schedule)"
             return schedule, "dataset shade schedule + auto for unlisted edges"
 
-        schedule = self.fallback_shade_schedule
-        edge_ids = {edge.edge_id for edge in graph.edges}
-        if schedule and set(schedule["edges"]) <= edge_ids:
-            return schedule, "config fallback schedule + auto for unlisted edges"
-        return None, "auto (no matching shade schedule)"
+        return None, "auto (no dataset schedule supplied)"
 
     def _dataset_schedule(self, dataset_dir: Path) -> dict[str, Any] | None:
         """The shade schedule named in <dataset_dir>/dataset.json, cached."""
@@ -456,11 +450,20 @@ class EnvironmentModel:
             )
         return self._dataset_schedules[key]
 
-    def _load_fallback_shade_schedule(self) -> dict[str, Any] | None:
-        name = self.config.metadata.get("shade_schedule_file")
-        if not name or not (PROJECT_ROOT / name).exists():
-            return None
-        return _read_shade_schedule(PROJECT_ROOT / name)
+    def _walkway_segments(self, dataset_dir: Any) -> list[list[str]]:
+        """Optional source-walkway grouping keeps shape segments on one profile."""
+        if not dataset_dir:
+            return []
+        directory = Path(dataset_dir).resolve()
+        if directory not in self._dataset_walkways:
+            manifest = json.loads((directory / "dataset.json").read_text(encoding="utf-8"))
+            filename = manifest.get("files", {}).get("source_edges")
+            groups = []
+            if filename:
+                source = json.loads((directory / filename).read_text(encoding="utf-8"))
+                groups = [record["pipeline_edges"] for record in source["source_edges"]]
+            self._dataset_walkways[directory] = groups
+        return self._dataset_walkways[directory]
 
     def _load_shade_profiles(self) -> dict[str, dict[str, float]]:
         """Dataset-independent shade curves used for automatic shade."""
@@ -595,11 +598,15 @@ AUTO_SHADE_TYPES = ("open", "tree_lined", "building_east", "building_west")
 
 
 def _auto_shade_profiles(
-    graph: CampusGraph, edges: list[GraphEdge], axis_ratio: float
+    graph: CampusGraph, edges: list[GraphEdge], axis_ratio: float,
+    walkway_segments: list[list[str]] | None = None,
 ) -> dict[str, str]:
     """Pick a shade type for each edge from its direction and position.
 
-    Uses only node x/y positions, which every dataset has:
+    Uses only node x/y positions, which every dataset has. When source walkway
+    groups are supplied, classify each complete walkway once using its endpoints
+    and share that profile across its segments. This also measures path spacing
+    at the original walkway scale rather than at short geometry-vertex spacing.
 
     - North-south path (y changes at least axis_ratio times more than x):
       runs beside buildings. The building side alternates from one
@@ -615,6 +622,27 @@ def _auto_shade_profiles(
     """
     if not edges:
         return {}
+    if walkway_segments:
+        by_id = {edge.edge_id: edge for edge in graph.edges}
+        grouped_ids: set[str] = set()
+        representatives = []
+        for group in walkway_segments:
+            if not group or any(identifier not in by_id for identifier in group):
+                raise ValueError("Source walkway must contain existing graph edge IDs")
+            if len(set(group)) != len(group) or grouped_ids.intersection(group):
+                raise ValueError("Source walkway segments must not repeat")
+            chain = [by_id[identifier] for identifier in group]
+            if any(a.to_node != b.from_node for a, b in zip(chain, chain[1:])):
+                raise ValueError("Source walkway segments must form an ordered chain")
+            grouped_ids.update(group)
+            representatives.append(replace(chain[0], to_node=chain[-1].to_node))
+        representatives.extend(edge for edge in graph.edges if edge.edge_id not in grouped_ids)
+        walkway_graph = replace(graph, edges=tuple(representatives))
+        profiles = _auto_shade_profiles(walkway_graph, representatives, axis_ratio)
+        expanded = {identifier: profiles[group[0]] for group in walkway_segments for identifier in group}
+        expanded.update({edge.edge_id: profiles[edge.edge_id]
+                         for edge in graph.edges if edge.edge_id not in grouped_ids})
+        return {edge.edge_id: expanded[edge.edge_id] for edge in edges}
     nodes = graph.nodes
     ratio = max(axis_ratio, 1.0)
 
@@ -700,16 +728,29 @@ def _hour_from_text(time_text: str) -> float:
     return hours + minutes / 60
 
 
-def _point_to_segment_m(
-    px: float, py: float, ax: float, ay: float, bx: float, by: float
+def _segment_circle_coverage_ratio(
+    px: float, py: float, radius: float,
+    ax: float, ay: float, bx: float, by: float
 ) -> float:
-    """Shortest distance in meters from point P to the segment A-B."""
+    """Fraction of straight segment A-B inside the circle centered at P.
+
+    The dimensionless fraction uses coordinate length, not travel distance.
+    Tangencies, zero-length segments, and nonpositive radii cover no length.
+    """
     dx, dy = bx - ax, by - ay
-    length_sq = dx * dx + dy * dy
-    if length_sq == 0:
-        return math.hypot(px - ax, py - ay)
-    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / length_sq))
-    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+    length = math.hypot(dx, dy)
+    if radius <= 0 or length == 0:
+        return 0.0
+    ux, uy = dx / length, dy / length
+    projection = (px - ax) * ux + (py - ay) * uy
+    perpendicular = (px - ax) * uy - (py - ay) * ux
+    half_chord_squared = radius * radius - perpendicular * perpendicular
+    if half_chord_squared <= 0:
+        return 0.0
+    half_chord = math.sqrt(half_chord_squared)
+    covered = max(0.0, min(length, projection + half_chord)
+                  - max(0.0, projection - half_chord))
+    return min(1.0, covered / length)
 
 
 def _parse_arguments():

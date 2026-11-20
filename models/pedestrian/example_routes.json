@@ -1,0 +1,14 @@
+{
+  "pedestrians": [
+    {
+      "pedestrian_id": 1,
+      "route": ["N01", "N02", "N03"],
+      "walking_speed_mps": 1.4
+    },
+    {
+      "pedestrian_id": 2,
+      "route": ["N03", "N02", "N01"],
+      "walking_speed_mps": 1.2
+    }
+  ]
+}

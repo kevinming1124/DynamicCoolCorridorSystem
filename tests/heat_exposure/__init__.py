@@ -1,0 +1,1 @@
+"""Heat Exposure model tests."""

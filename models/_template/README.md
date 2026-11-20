@@ -93,10 +93,11 @@ Actuators expose three runtime properties, initialized when the dataset loads:
 | Actuator type | `status` | `wait_time_s` | `recommended_edge` |
 | --- | --- | --- | --- |
 | `misting_point` | `"off"` | `null` | `null` |
-| `traffic_signal` | `null` | Static `default_wait_time_s` | `null` |
+| `traffic_signal` | `"on"` | Static `default_wait_time_s` | `null` |
 | `directional_led` | `"off"` | `null` | `null` |
 
-Misting and LED status may be `"on"` or `"off"`. Signal wait time must stay
+Misting and LED status may be `"on"` or `"off"`. Traffic-signal status must
+remain `"on"`. Signal wait time must stay
 within its static minimum and maximum. An LED recommendation may be `null` or one
 of that actuator's statically configured `recommended_edges`. These initial
 values are derived by the loader; they are not duplicated in `actuators.json`.

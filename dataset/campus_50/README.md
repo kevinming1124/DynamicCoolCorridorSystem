@@ -2,7 +2,7 @@
 
 Owner: Aman (Environment Model)
 
-This is the full-size campus used by the Dynamic Cool Corridors simulation:
+This is a synthetic campus dataset available to the Dynamic Cool Corridors simulation:
 **50 nodes, 100 edges, 4 misting points, and 6 pedestrian traffic signals.**
 It uses exactly the same JSON format as `dataset/tiny_campus_block`, so the
 shared loader in `utils/graph` reads it without any code changes. Place names
@@ -10,7 +10,8 @@ come from the USC University Park campus and are arranged roughly like the real
 campus, but the grid is simplified and not to scale. Coordinates are local
 meters, not latitude and longitude.
 
-The small `tiny_campus_block` dataset is untouched and is still the default.
+The pipeline defaults to `dataset/usc_osm_trimmed`. This dataset and the small
+`tiny_campus_block` dataset remain available through `--dataset`.
 
 ## Quick start
 
@@ -86,13 +87,9 @@ Each controls every edge touching its intersection, with a 30 s default wait
 and limits of 10 s to 90 s. The control model (Kai-Ming) changes these waits at
 runtime.
 
-No directional LED signs are included, because they are not part of the
-current project plan.
-
 ## Shade schedule
 
-Computing real shadows from building shapes and sun angles is out of scope.
-Instead, every edge gets one of four **shade profiles**, and each profile lists
+Every edge gets one of four simulated **shade profiles**, and each profile lists
 a shade percent for every 30-minute time slot.
 
 | Profile | Meaning | Shade during the day |
@@ -123,10 +120,9 @@ percent = shade["profiles"][profile]["10:00"]  # e.g. 70.0
 
 ### Why shade is a separate file
 
-The project rules say shade is a dynamic value and must not be a static column
-in `edges.json`. Keeping it in `shade_schedule.json` leaves `edges.json` in the
-standard format. The shared loader ignores this file; only the environment
-model reads it.
+Environment reads `shade_schedule.json` and writes the requested time's shade
+into runtime edge properties. This keeps `edges.json` in the shared static
+dataset format.
 
 ## Checks built into the generator
 
@@ -149,13 +145,14 @@ named places, mister locations, number of signals, or shade profiles), then
 rerun the script. Do not hand-edit the JSON files, because the next run will
 overwrite them.
 
-No Excel mirror is included, because writing `.xlsx` files needs a third-party
-package and the project is currently standard-library only.
+No Excel mirror is included. The dataset generator uses only the Python
+standard library and writes JSON. Running the full pipeline requires the
+packages in the root `requirements.txt`, including pythermalcomfort and MoonLight.
 
 ## What uses this dataset next
 
 The environment model (`models/environment/`) reads this graph and the shade
-schedule and produces these properties for every edge at each 30-minute step
+schedule and produces these properties for every edge at the requested time
 (see `models/environment/README.md`):
 
 | Property | Meaning |
@@ -166,4 +163,6 @@ schedule and produces these properties for every edge at each 30-minute step
 | `shade_pct` | Shade percent from `shade_schedule.json` |
 | `mist_cooling_f` | Cooling from nearby misters (0 when none are on) |
 
-Wind is intentionally not modeled, per the course feedback.
+Environment does not produce a wind property. Heat Exposure uses a constant
+assumed wind speed at 10 m, configured by `assumed_wind_speed_10m_mps`
+(currently 1.5 m/s) in `models/heat_exposure/config.json` for its UTCI calculation.

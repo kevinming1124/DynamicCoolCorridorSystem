@@ -1,0 +1,17 @@
+{
+  "model_name": "routingc_model",
+  "description": "Use routingc's distance/comfort Dijkstra on the same graph as the pedestrian simulator.",
+  "enabled": true,
+  "property_target": "edge",
+  "output_properties": ["walkability", "blocked", "planned_pedestrians"],
+  "input_properties": ["heat_exposure_rate"],
+  "parameters": {"discomfort_scale_c": 20.0},
+  "metadata": {
+    "trips": [
+      {"pedestrian_id": 1, "origin": "Leavey Library", "destination": "Seeley G. Mudd Building", "preference": 0.0},
+      {"pedestrian_id": 2, "origin": "Leavey Library", "destination": "Seeley G. Mudd Building", "preference": 1.0},
+      {"pedestrian_id": 3, "origin": "Seeley G. Mudd Building", "destination": "Leavey Library", "preference": 0.0},
+      {"pedestrian_id": 4, "origin": "Seeley G. Mudd Building", "destination": "Leavey Library", "preference": 1.0}
+    ]
+  }
+}
