@@ -1,0 +1,141 @@
+"""
+Cool Corridors router: comfort-vs-speed routing on the UPC walkway graph.
+
+Run from this folder after ../osm_build/upc_graph.py has made the graphs:
+    python router.py
+    python router.py --start "Taper Hall" --dest "Ginsburg Hall"
+    python router.py --graph full --block
+
+Prints each route's stats and saves routes.png.
+"""
+
+import argparse
+import json
+import random
+import sys
+from pathlib import Path
+from math import sin, cos
+
+import matplotlib.pyplot as plt
+import osmnx as ox
+from shapely.geometry import LineString
+
+# Keep direct execution from this folder working with the shared pipeline code.
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from models.routing.routing_core import K, dijkstra, make_cost, route, set_blocked
+WALK_SPEED = 1.4  # meters per second, typical walking pace
+HERE = Path(__file__).resolve().parent
+GRAPH_DIRECTORY = HERE.parent / "osm_build"
+
+
+# --- Route measurements and plotting helpers ----------------------------------
+def stats(G, edges):
+    dist = sum(G.edges[e]["length"] for e in edges)
+    exposure = sum(G.edges[e]["length"] * (1 - G.edges[e]["walkability"]) for e in edges)
+    return dist, exposure
+
+
+def edge_line(G, u, v, data):
+    if "geometry" in data:
+        return data["geometry"]
+    return LineString([(G.nodes[u]["x"], G.nodes[u]["y"]), (G.nodes[v]["x"], G.nodes[v]["y"])])
+
+
+def placeholder_walkability(G, seed=0):
+    """FAKE scores in [0, 1] until the real model exists. Smooth patches of shade
+    plus a little noise, so nearby edges have similar values, like real shade."""
+    rng = random.Random(seed)
+    for u, v, k, data in G.edges(keys=True, data=True):
+        mid = edge_line(G, u, v, data).interpolate(0.5, normalized=True)
+        smooth = 0.55 + 0.35 * sin(mid.x / 80) * cos(mid.y / 110)
+        data["walkability"] = min(1.0, max(0.0, smooth + rng.uniform(-0.1, 0.1)))
+
+
+# --- Piece 4: run and draw -----------------------------------------------------
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--graph", choices=["trimmed", "full"], default="trimmed")
+    ap.add_argument("--start", default="Leavey Library")
+    ap.add_argument("--dest", default="Seeley G. Mudd Building")
+    ap.add_argument("--block", action="store_true",
+                    help="also block the busiest edge of the shortest route and replan")
+    ap.add_argument("--heat-test", action="store_true",
+                    help="make every edge of the shortest route maximally hot, to check "
+                         "that comfort routing really detours")
+    args = ap.parse_args()
+
+    G = ox.load_graphml(GRAPH_DIRECTORY / f"upc_walk_{args.graph}.graphml")
+    with open(GRAPH_DIRECTORY / f"buildings_{args.graph}.json") as f:
+        doors = {b: [int(n) for n in ns] for b, ns in json.load(f).items()}
+    for b in (args.start, args.dest):
+        if b not in doors:
+            raise SystemExit(f"'{b}' isn't in buildings_{args.graph}.json - check the spelling")
+
+    placeholder_walkability(G)
+
+    if args.heat_test:
+        # Controlled test: find the shortest route, then make all of it as hot as
+        # possible (walkability 0). Speed mode should still take it (it ignores heat);
+        # comfort mode should now avoid it if any alternative is within its detour limit.
+        hot, _ = route(G, doors, args.start, args.dest, 0.0)
+        if hot:
+            for e in hot:
+                G.edges[e]["walkability"] = 0.0
+            print(f"\nHEAT TEST: set walkability = 0 on all {len(hot)} edges of the shortest route")
+
+    settings = [("speed (p=0)", 0.0, "#2b6cb0"),
+                ("balanced (p=0.5)", 0.5, "#d69e2e"),
+                ("comfort (p=1)", 1.0, "#2f855a")]
+    results = []
+    print(f"\n{args.start}  ->  {args.dest}\n")
+    print(f"{'setting':<18}{'distance':>10}{'time':>9}{'heat exposure':>15}")
+    for label, p, color in settings:
+        edges, _ = route(G, doors, args.start, args.dest, p)
+        if edges is None:
+            print(f"{label:<18}  no route")
+            continue
+        d, e = stats(G, edges)
+        print(f"{label:<18}{d:>8.0f} m{d / WALK_SPEED / 60:>7.1f} min{e:>13.0f}")
+        results.append((label, color, edges))
+
+    if args.block and results:
+        # Close the longest edge on the shortest route and see what happens.
+        u, v, k = max(results[0][2], key=lambda e: G.edges[e]["length"])
+        set_blocked(G, u, v, k)
+        edges, _ = route(G, doors, args.start, args.dest, 0.0)
+        if edges is None:
+            print("\nAfter blocking: no route at all!")
+        else:
+            d, e = stats(G, edges)
+            print(f"\n{'speed, 1 blocked':<18}{d:>8.0f} m{d / WALK_SPEED / 60:>7.1f} min{e:>13.0f}")
+            results.append(("speed, after block", "#c53030", edges))
+
+    # Draw: every edge colored by walkability, routes on top, blocked edges dashed.
+    fig, ax = plt.subplots(figsize=(12, 9))
+    cmap = plt.get_cmap("RdYlGn")
+    for u, v, k, data in G.edges(keys=True, data=True):
+        line = edge_line(G, u, v, data)
+        xs, ys = line.xy
+        style = "--" if data.get("blocked") else "-"
+        ax.plot(xs, ys, style, color=cmap(data["walkability"]), linewidth=1.2, alpha=0.6)
+    for i, (label, color, edges) in enumerate(results):
+        for j, e in enumerate(edges):
+            xs, ys = edge_line(G, e[0], e[1], G.edges[e]).xy
+            ax.plot(xs, ys, color=color, linewidth=5 - i, alpha=0.85,
+                    label=label if j == 0 else None)
+    for name, mark in ((args.start, "o"), (args.dest, "*")):
+        for n in doors[name]:
+            ax.plot(G.nodes[n]["x"], G.nodes[n]["y"], mark, color="black", markersize=12)
+    ax.set_title(f"{args.start} -> {args.dest}\n"
+                 "thin lines: walkability (red = hot, green = comfortable)")
+    ax.legend(loc="lower left")
+    ax.set_aspect("equal")
+    ax.axis("off")
+    fig.savefig(HERE / "routes.png", dpi=150, bbox_inches="tight")
+    print(f"\nSaved {HERE / 'routes.png'}")
+
+
+if __name__ == "__main__":
+    main()

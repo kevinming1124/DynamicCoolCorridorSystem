@@ -16,14 +16,19 @@
     "sunrise_hour": 6.0,
     "sunset_hour": 20.0,
     "peak_solar_radiation_wm2": 900.0,
-    "mist_range_m": 75.0,
+    "mist_range_m": 10.0,
     "mist_humidity_increase_pct": 5.0,
-    "default_shade_pct": 5.0
+    "auto_shade_axis_ratio": 2.0
   },
   "metadata": {
     "default_time": "12:00",
     "default_scenario": "hot",
     "scenarios_file": "scenarios.json",
-    "shade_schedule_file": "dataset/campus_50/shade_schedule.json"
+    "shade_profiles": {
+      "open": {"00:00": 5.0},
+      "tree_lined": {"00:00": 60.0},
+      "building_east": {"00:00": 70.0, "11:00": 40.0, "12:00": 15.0},
+      "building_west": {"00:00": 15.0, "13:30": 40.0, "14:30": 70.0}
+    }
   }
 }

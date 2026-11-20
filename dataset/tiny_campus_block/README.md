@@ -73,10 +73,11 @@ the static dataset:
 | Actuator type | Initial runtime properties |
 | --- | --- |
 | `misting_point` | `status: "off"`, `wait_time_s: null`, `recommended_edge: null` |
-| `traffic_signal` | `status: null`, `wait_time_s: default_wait_time_s`, `recommended_edge: null` |
+| `traffic_signal` | `status: "on"`, `wait_time_s: default_wait_time_s`, `recommended_edge: null` |
 | `directional_led` | `status: "off"`, `wait_time_s: null`, `recommended_edge: null` |
 
-`recommended_edge` may later select one edge from the LED's `recommends`
+Traffic-signal status must remain `"on"`; its wait time is adjustable within
+the configured limits. `recommended_edge` may later select one edge from the LED's `recommends`
 relationships. Keeping these values out of `actuators.json` preserves the file as
 static infrastructure data.
 

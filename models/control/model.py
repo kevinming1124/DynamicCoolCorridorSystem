@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Mapping
+
+from models.environment.model import (
+    ModelConfig as EnvironmentConfig,
+    _segment_circle_coverage_ratio,
+)
 
 from utils import (
     CampusGraph,
@@ -18,10 +24,9 @@ from utils import (
 
 PROJECT_ROOT = Path(__file__).parents[2]
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.json")
-DEFAULT_DATASET_PATH = PROJECT_ROOT / "dataset" / "campus_50"
+DEFAULT_DATASET_PATH = PROJECT_ROOT / "dataset" / "usc_osm_trimmed"
 
 UNSAFE_HEAT_PROPERTY = "unsafe_heat"
-WALKING_HEAT_EXPOSURE_PROPERTY = "walking_heat_exposure"
 
 
 @dataclass(frozen=True)
@@ -65,8 +70,12 @@ class ModelConfig:
 class ControlModel:
     """Dispatch and apply controls for each campus actuator."""
 
-    def __init__(self, config: ModelConfig) -> None:
+    def __init__(self, config: ModelConfig, mist_range_m: float | None = None) -> None:
         self.config = config
+        self.mist_range_m = (EnvironmentConfig.from_file().parameters["mist_range_m"]
+                             if mist_range_m is None else mist_range_m)
+        if not math.isfinite(self.mist_range_m) or self.mist_range_m <= 0:
+            raise ValueError("Misting observation radius must be finite and positive")
 
     @classmethod
     def from_config(cls, path: str | Path = DEFAULT_CONFIG_PATH) -> "ControlModel":
@@ -77,7 +86,8 @@ class ControlModel:
             raise RuntimeError(f"Model '{self.config.model_name}' is disabled")
 
         actuators = {
-            actuator_id: self.control_actuator(actuator, model_input.graph)
+            actuator_id: (actuator if actuator.actuator_type == "directional_led"
+                          else self.control_actuator(actuator, model_input.graph))
             for actuator_id, actuator in model_input.graph.actuators.items()
         }
         graph = replace(model_input.graph, actuators=actuators)
@@ -88,6 +98,7 @@ class ControlModel:
             property_names=(),
             property_values={},
             graph=graph,
+            diagnostics={"mist_range_m": self.mist_range_m},
         )
 
     def predict(self, model_input: ModelInput) -> ModelOutput:
@@ -102,8 +113,6 @@ class ControlModel:
             return self.control_misting_point(actuator, graph)
         if actuator.actuator_type == "traffic_signal":
             return self.control_traffic_signal(actuator, graph)
-        if actuator.actuator_type == "directional_led":
-            return self.control_directional_led(actuator, graph)
 
         raise ValueError(
             f"{actuator.actuator_id}: unsupported actuator type "
@@ -113,20 +122,23 @@ class ControlModel:
     def control_misting_point(
         self, actuator: StaticActuator, graph: CampusGraph
     ) -> StaticActuator:
-        """Mist when any edge at the anchor node is flagged as unsafe heat."""
-        incident_edges = tuple(
+        """Mist when any segment overlapping the cooling zone is unsafe."""
+        observed_edges = tuple(
             edge
             for edge in graph.edges
-            if actuator.anchor_node in {edge.from_node, edge.to_node}
+            if _segment_circle_coverage_ratio(
+                actuator.x_m, actuator.y_m, self.mist_range_m,
+                graph.nodes[edge.from_node].x_m, graph.nodes[edge.from_node].y_m,
+                graph.nodes[edge.to_node].x_m, graph.nodes[edge.to_node].y_m,
+            ) > 0
         )
-        if not incident_edges:
+        if not observed_edges:
             raise ValueError(
-                f"{actuator.actuator_id}: no edges connect to anchor node "
-                f"'{actuator.anchor_node}'"
+                f"{actuator.actuator_id}: no walkway segments overlap the misting observation zone"
             )
         unsafe_heat = max(
             self._unsafe_heat(edge.properties, edge.edge_id)
-            for edge in incident_edges
+            for edge in observed_edges
         )
         status = "on" if unsafe_heat == 1.0 else "off"
         print(
@@ -159,28 +171,6 @@ class ControlModel:
         )
         return actuator.with_property("status", "on").with_property(
             "wait_time_s", wait_time_s
-        )
-
-    def control_directional_led(
-        self, actuator: StaticActuator, graph: CampusGraph
-    ) -> StaticActuator:
-        """Recommend the linked edge with the lowest walking heat exposure."""
-        recommended_edge = min(
-            actuator.recommended_edges,
-            key=lambda edge_id: self._edge_property(
-                graph, edge_id, WALKING_HEAT_EXPOSURE_PROPERTY
-            ),
-        )
-        walking_heat_exposure = self._edge_property(
-            graph, recommended_edge, WALKING_HEAT_EXPOSURE_PROPERTY
-        )
-        print(
-            f"Controlling directional LED {actuator.actuator_id}: "
-            f"recommend {recommended_edge} (walking heat exposure "
-            f"{walking_heat_exposure:.2f} degree-minutes)"
-        )
-        return actuator.with_property("status", "on").with_property(
-            "recommended_edge", recommended_edge
         )
 
     def _edge_property(
@@ -225,16 +215,117 @@ class ControlModel:
         return float(value)
 
 
-if __name__ == "__main__":
+def audit_control_rules(before: CampusGraph, after: CampusGraph, radius: float) -> list[dict]:
+    """Check commands against pre-control heat flags, without applying effects.
+
+    Observation is checked independently using point-to-segment distance rather
+    than the controller's circle-intersection coverage calculation.
+    """
+    reports = []
+    for identifier, actuator in before.actuators.items():
+        if actuator.actuator_type == "misting_point":
+            observed = []
+            for edge in before.edges:
+                a, b = before.nodes[edge.from_node], before.nodes[edge.to_node]
+                dx, dy = b.x_m - a.x_m, b.y_m - a.y_m
+                squared = dx * dx + dy * dy
+                if squared == 0:
+                    continue
+                t = max(0.0, min(1.0, ((actuator.x_m - a.x_m) * dx
+                                      + (actuator.y_m - a.y_m) * dy) / squared))
+                distance = math.hypot(a.x_m + t * dx - actuator.x_m,
+                                      a.y_m + t * dy - actuator.y_m)
+                if distance < radius:
+                    observed.append(edge)
+        elif actuator.actuator_type == "traffic_signal":
+            observed = [edge for edge in before.edges if edge.edge_id in actuator.controlled_edges]
+        else:
+            continue
+        unsafe_count = sum(edge.properties[UNSAFE_HEAT_PROPERTY] == 1.0 for edge in observed)
+        if actuator.actuator_type == "misting_point":
+            expected = {"status": "on" if unsafe_count else "off"}
+        else:
+            expected = {"status": "on", "wait_time_s": (
+                actuator.min_wait_time_s if unsafe_count else actuator.default_wait_time_s)}
+        actual = {key: after.actuators[identifier].properties.get(key) for key in expected}
+        previous = {key: actuator.properties.get(key) for key in expected}
+        reports.append({
+            "actuator_id": identifier, "actuator_type": actuator.actuator_type,
+            "observed_edges": [edge.edge_id for edge in observed],
+            "unsafe_segment_count": unsafe_count,
+            "previous": previous, "expected": expected, "actual": actual,
+            "result": "PASS" if observed and actual == expected else "FAIL",
+        })
+    return reports
+
+
+def run_standalone(
+    dataset: str | Path = DEFAULT_DATASET_PATH,
+    time: str = "13:00",
+    scenario: str = "hot",
+    misting_count: int | None = 4,
+) -> ModelOutput:
+    """Run upstream inputs once and check one control decision, without effects."""
     from models.environment import EnvironmentModel
     from models.heat_exposure import HeatExposureModel
+    from utils.graph.misting_scenarios import apply_misting_scenario
 
-    model = ControlModel.from_config()
-    graph = load_campus_graph(DEFAULT_DATASET_PATH)
-    environment_output = EnvironmentModel.from_config().predict(ModelInput(graph=graph))
+    dataset = Path(dataset)
+    environment = EnvironmentModel.from_config()
+    radius = environment.config.parameters["mist_range_m"]
+    model = ControlModel(ModelConfig.from_file(), mist_range_m=radius)
+    graph = load_campus_graph(dataset)
+    layout = None
+    if misting_count is not None:
+        graph, layout = apply_misting_scenario(graph, dataset, misting_count, radius)
+    context = {"dataset_dir": str(dataset), "time": time, "scenario": scenario}
+    environment_output = environment.predict(ModelInput(graph=graph, context=context))
     heat_output = HeatExposureModel.from_config().predict(
-        environment_output.to_model_input()
+        environment_output.to_model_input(context=context)
     )
-    output = model.control(heat_output.to_model_input())
-    for actuator in output.graph.actuators.values():
-        print(f"{actuator.actuator_id}: {dict(actuator.properties)}")
+    output = model.control(heat_output.to_model_input(context=context))
+    reports = audit_control_rules(heat_output.graph, output.graph, radius)
+    return replace(output, diagnostics={
+        **output.diagnostics,
+        "dataset_dir": str(dataset), "time": time, "scenario": scenario,
+        "misting_count": sum(a.actuator_type == "misting_point" for a in graph.actuators.values()),
+        "misting_layout": layout,
+        "shade_source": environment_output.diagnostics["shade_source"],
+        "rule_checks": reports,
+        "rule_check_status": "PASS" if all(r["result"] == "PASS" for r in reports) else "FAIL",
+        "heat_snapshot": "pre-control; actuator effects are not recalculated",
+    })
+
+
+def main(argv=None) -> ModelOutput:
+    import argparse
+    from utils.graph.misting_scenarios import MISTING_COUNTS
+
+    parser = argparse.ArgumentParser(description="Check one control decision using real upstream heat inputs.")
+    parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET_PATH)
+    parser.add_argument("--time", default="13:00")
+    parser.add_argument("--scenario", default="hot")
+    parser.add_argument("--misting-count", choices=[str(n) for n in MISTING_COUNTS] + ["base"],
+                        default="4", help="Mister layout: 0, 4 (default), 6, 10, or base for dataset actuators")
+    parser.add_argument("--save", type=Path, help="Save commands, pre-control heat inputs, and rule checks as JSON")
+    arguments = parser.parse_args(argv)
+    count = None if arguments.misting_count == "base" else int(arguments.misting_count)
+    output = run_standalone(arguments.dataset, arguments.time, arguments.scenario, count)
+    print(f"Dataset: {arguments.dataset}; misters: {output.diagnostics['misting_count']}; "
+          f"time: {arguments.time}; scenario: {arguments.scenario}")
+    print("One control decision; heat values describe conditions before these commands.")
+    for report in output.diagnostics["rule_checks"]:
+        print(f"{report['actuator_id']}: observed {len(report['observed_edges'])} segments, "
+              f"{report['unsafe_segment_count']} unsafe; previous {report['previous']}; "
+              f"expected {report['expected']}; actual {report['actual']} -> {report['result']}")
+        print(f"  Observed segments: {', '.join(report['observed_edges'])}")
+    print(f"Control rules: {output.diagnostics['rule_check_status']}")
+    if arguments.save:
+        print(f"Saved to {output.save_json(arguments.save)}")
+    if output.diagnostics["rule_check_status"] != "PASS":
+        raise SystemExit(1)
+    return output
+
+
+if __name__ == "__main__":
+    main()

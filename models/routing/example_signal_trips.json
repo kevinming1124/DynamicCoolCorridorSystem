@@ -1,0 +1,6 @@
+{
+  "pedestrians": [
+    {"pedestrian_id": 1, "origin": "Olin Hall of Engineering", "destination": "Seeley G. Mudd Building", "preference": 0.0, "walking_speed_mps": 1.4},
+    {"pedestrian_id": 2, "origin": "Seeley G. Mudd Building", "destination": "Olin Hall of Engineering", "preference": 0.0, "walking_speed_mps": 1.4}
+  ]
+}

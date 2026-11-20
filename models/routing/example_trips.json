@@ -1,0 +1,6 @@
+{
+  "pedestrians": [
+    {"pedestrian_id": 1, "origin": "Leavey Library", "destination": "Seeley G. Mudd Building", "preference": 0.0, "walking_speed_mps": 1.4},
+    {"pedestrian_id": 2, "origin": "Leavey Library", "destination": "Seeley G. Mudd Building", "preference": 1.0, "walking_speed_mps": 1.4}
+  ]
+}

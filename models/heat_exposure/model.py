@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -32,7 +32,7 @@ from utils import (
 
 PROJECT_ROOT = Path(__file__).parents[2]
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.json")
-DEFAULT_DATASET_PATH = PROJECT_ROOT / "dataset" / "campus_50"
+DEFAULT_DATASET_PATH = PROJECT_ROOT / "dataset" / "usc_osm_trimmed"
 STEFAN_BOLTZMANN = 5.670374419e-8
 
 
@@ -140,6 +140,8 @@ class HeatExposureModel:
             graph=graph,
             diagnostics={
                 "edge_count": len(graph.edges),
+                "unsafe_utci_c": self._parameter("unsafe_utci_c"),
+                "reference_utci_c": self._parameter("reference_utci_c"),
                 "input_properties": list(self.config.input_properties),
                 "assumed_wind_speed_10m_mps": self._parameter(
                     "assumed_wind_speed_10m_mps"
@@ -313,21 +315,78 @@ def calculate_utci_c(
     return value
 
 
-if __name__ == "__main__":
+def _parse_arguments(argv=None):
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Run Environment then Heat Exposure and print a heat summary."
+    )
+    parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET_PATH)
+    parser.add_argument("--time", default="13:00", help='Time of day, e.g. "08:00" (default: 13:00)')
+    parser.add_argument("--scenario", default="hot", help="Weather scenario (default: hot)")
+    parser.add_argument("--mister-on", nargs="*", default=[], metavar="ACTUATOR_ID",
+                        help="Turn on these misters for this run, e.g. SIM_M1 SIM_M2")
+    parser.add_argument("--save", type=Path, help="Save full heat output, including environmental edge properties, as JSON")
+    return parser.parse_args(argv)
+
+
+def run_standalone(
+    dataset: str | Path = DEFAULT_DATASET_PATH,
+    time: str = "13:00",
+    scenario: str = "hot",
+    mister_ids: tuple[str, ...] = (),
+) -> ModelOutput:
+    """Test heat exposure with Environment's real outputs on the selected map."""
     from models.environment import EnvironmentModel
 
-    graph = load_campus_graph(DEFAULT_DATASET_PATH)
-    context = {"time": "13:00", "scenario": "hot"}
+    graph = load_campus_graph(dataset)
+    invalid = [identifier for identifier in mister_ids
+               if identifier not in graph.actuators
+               or graph.actuators[identifier].actuator_type != "misting_point"]
+    if invalid:
+        raise ValueError(f"Unknown or non-misting actuator IDs: {invalid}")
+    if mister_ids:
+        graph = graph.with_actuator_property("status", {
+            identifier: "on" if identifier in mister_ids else actuator.properties.get("status")
+            for identifier, actuator in graph.actuators.items()
+        })
+    context = {"dataset_dir": str(dataset), "time": time, "scenario": scenario}
     environment_output = EnvironmentModel.from_config().predict(
         ModelInput(graph=graph, context=context)
     )
     output = HeatExposureModel.from_config().predict(
         environment_output.to_model_input(context=context)
     )
-    print(f"Heat exposure calculated for {len(output.graph.edges)} edges")
+    return replace(output, diagnostics={
+        **output.diagnostics,
+        "dataset_dir": str(dataset),
+        "time": environment_output.diagnostics["time"],
+        "scenario": environment_output.diagnostics["scenario"],
+        "misters_on": environment_output.diagnostics["misters_on"],
+        "shade_source": environment_output.diagnostics["shade_source"],
+        "edges_with_scheduled_shade": environment_output.diagnostics["edges_with_scheduled_shade"],
+        "edges_with_auto_shade": environment_output.diagnostics["edges_with_auto_shade"],
+    })
+
+
+def main(argv=None) -> ModelOutput:
+    arguments = _parse_arguments(argv)
+    output = run_standalone(arguments.dataset, arguments.time, arguments.scenario,
+                            tuple(arguments.mister_on))
+    print(f"Dataset: {arguments.dataset}")
+    print(f"Heat exposure at {output.diagnostics['time']}, "
+          f"scenario '{output.diagnostics['scenario']}', {len(output.graph.edges)} edges, "
+          f"misters on: {output.diagnostics['misters_on'] or 'none'}")
     for name in output.property_names:
         values = list(output.property_values[name].values())
         print(
             f"  {name:<24} min {min(values):8.2f}  "
             f"avg {sum(values) / len(values):8.2f}  max {max(values):8.2f}"
         )
+    if arguments.save:
+        print(f"Saved to {output.save_json(arguments.save)}")
+    return output
+
+
+if __name__ == "__main__":
+    main()
